@@ -15,6 +15,7 @@ module IOCP.Windows (
 ) where
 
 import Control.Exception
+import Data.Char (isSpace)
 import Data.Typeable (Typeable)
 import Foreign
 import Foreign.C
@@ -82,7 +83,8 @@ getErrorMessage code =
           else do msg <- peekCWString c_msg
                   -- We ignore failure of freeing c_msg, given we're already failing
                   _ <- localFree c_msg
-                  return msg
+                  let msg' = reverse $ dropWhile isSpace $ reverse msg -- drop trailing \n
+                  return msg'
 
 foreign import ccall unsafe "iocp_getErrorMessage" -- in iocp.c
     c_getErrorMessage :: ErrCode -> IO LPWSTR
