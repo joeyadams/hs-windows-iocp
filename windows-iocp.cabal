@@ -1,8 +1,9 @@
 name: windows-iocp
 version: 0.1
-synopsis: Playground for implementing interruptible I/O using completion ports
+synopsis: Playground for implementing interruptible I/O on Windows using completion ports
 -- description:
 homepage: https://github.com/joeyadams/hs-windows-iocp
+bug-reports: https://github.com/joeyadams/hs-windows-iocp/issues/new
 license: BSD3
 license-file: LICENSE
 author: Joey Adams
@@ -11,6 +12,10 @@ copyright: Copyright (c) Joseph Adams 2013
 category: System
 build-type: Simple
 cabal-version: >= 1.14
+
+source-repository head
+    type:       git
+    location:   https://github.com/joeyadams/hs-windows-iocp
 
 library
     exposed-modules:
@@ -25,7 +30,7 @@ library
         cbits/iocp.c
         cbits/Winsock.c
 
-    build-depends: base >= 4.6
+    build-depends: base >= 4.6 && < 5
 
     extra-libraries: ws2_32
 
