@@ -10,6 +10,7 @@ module IOCP.Bindings (
     getQueuedCompletionStatus,
     iNFINITE,
     postQueuedCompletionStatus,
+    postValue,
 
     -- * Miscellaneous
     closeHandle,
@@ -114,7 +115,13 @@ postQueuedCompletionStatus
     -> DWORD  -- ^ Number of bytes transferred
     -> Overlapped a
     -> IO ()
-postQueuedCompletionStatus = undefined
+postQueuedCompletionStatus cport numBytes ol =
+    failIf_ (== 0) "postQueuedCompletionStatus" $
+    c_PostQueuedCompletionStatus cport numBytes 0 ol
+
+postValue :: CompletionPort a -> a -> IO ()
+postValue cport a =
+    newOverlapped 0 a >>= postQueuedCompletionStatus cport 0
 
 newtype CompletionPort a = CompletionPort HANDLE
     deriving (Eq, Show, Storable)
@@ -167,4 +174,12 @@ foreign import WINDOWS_CCONV safe "GetQueuedCompletionStatus"
         -> Ptr ULONG_PTR      -- ^ lpCompletionKey
         -> Ptr (Overlapped a) -- ^ lpOverlapped
         -> DWORD              -- ^ dwMilliseconds
+        -> IO BOOL
+
+foreign import WINDOWS_CCONV unsafe "windows.h PostQueuedCompletionStatus"
+    c_PostQueuedCompletionStatus
+        :: CompletionPort a
+        -> DWORD              -- ^ dwNumberOfBytesTransferred
+        -> ULONG_PTR          -- ^ dwCompletionKey
+        -> Overlapped a       -- ^ lpOverlapped
         -> IO BOOL
