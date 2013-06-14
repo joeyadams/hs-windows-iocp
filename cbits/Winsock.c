@@ -53,10 +53,21 @@ Winsock *iocp_winsock_init(void)
         return NULL;
     }
 
+    /* Start up Winsock */
+    {
+        WORD version = MAKEWORD(2, 2);
+        int rc = WSAStartup(version, &winsock->wsaData);
+        if (rc != 0)
+            goto fail1;
+        if (!(LOBYTE(winsock->wsaData.wVersion) == 2 &&
+              HIBYTE(winsock->wsaData.wVersion) == 2))
+            goto fail2;
+    }
+
     /* Make a dummy SOCKET needed by WSAIoctl. */
     sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock == INVALID_SOCKET)
-        goto fail1;
+        goto fail2;
 
     #define get(fun, required, guid_init) \
     { \
@@ -68,7 +79,7 @@ Winsock *iocp_winsock_init(void)
             &dwBytes, NULL, NULL); \
         if (rc != 0) { \
             if (required) \
-                goto fail1; \
+                goto fail2; \
             else \
                 winsock->fun = NULL; \
         } \
@@ -88,6 +99,8 @@ Winsock *iocp_winsock_init(void)
     closesocket(sock);
     return winsock;
 
+fail2:
+    WSACleanup();
 fail1:
     HeapFree(GetProcessHeap(), 0, winsock);
     return NULL;
