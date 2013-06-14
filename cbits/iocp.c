@@ -27,29 +27,6 @@ void *iocp_finish_overlapped(Overlapped *ol)
     return ctx;
 }
 
-/*
- * Return values:
- *  TRUE:  Completion (successful or otherwise) was received.
- *  FALSE: GetQueuedCompletionStatus failed or timed out.
- *         numBytes_out and ctx_out are undefined.
- */
-BOOL iocp_get_next_completion(HANDLE iocp, DWORD timeout,
-    DWORD *numBytes_out, DWORD *err_out, void **ctx_out)
-{
-    OVERLAPPED *raw = NULL;
-    ULONG_PTR completionKey = 0;
-    BOOL ok;
-
-    *numBytes_out = 0;
-    ok = GetQueuedCompletionStatus(iocp, numBytes_out, &completionKey,
-            &raw, timeout);
-    *err_out = ok ? ERROR_SUCCESS : GetLastError();
-    if (raw == NULL)
-        return FALSE;
-    *ctx_out = iocp_finish_overlapped((Overlapped*) raw);
-    return TRUE;
-}
-
 typedef ULONGLONG (WINAPI *GetTickCount64_t)(void);
 
 GetTickCount64_t iocp_load_GetTickCount64(void)
@@ -78,4 +55,3 @@ LPWSTR iocp_getErrorMessage(DWORD err)
         return NULL;
     return what;
 }
-
