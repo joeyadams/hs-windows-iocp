@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module IOCP.Winsock.Types (
@@ -8,9 +9,11 @@ module IOCP.Winsock.Types (
 
 import Control.Applicative
 import Data.Bits
+import Data.List
 import Data.Typeable (Typeable)
 import Data.Word
 import Foreign
+import Numeric (showInt, showHex)
 
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -23,7 +26,21 @@ import Foreign
 -- everywhere, rather than @HostAddress 0x0100007f@ on little-endian
 -- architectures (such as x86).
 newtype HostAddress = HostAddress Word32
-    deriving Eq
+    deriving (Eq, Typeable)
+
+-- | Dotted decimal form, like @127.0.0.1@
+instance Show HostAddress where
+    -- We could use inet_ntoa, but then we'd have to wrap it up for
+    -- thread safety, since the address returned might be modified by
+    -- another green thread.  This is clearer, anyway.
+    showsPrec _p (HostAddress a) =
+        showInt (a .>>. 24) . showChar '.' .
+        showInt (a .>>. 16) . showChar '.' .
+        showInt (a .>>.  8) . showChar '.' .
+        showInt (a .>>.  0)
+      where
+        (.>>.) :: Word32 -> Int -> Word8
+        (.>>.) x n = fromIntegral (x `shiftR` n)
 
 -- | @in_addr@ (stored in network byte order)
 instance Storable HostAddress where
@@ -33,6 +50,38 @@ instance Storable HostAddress where
     poke ptr (HostAddress w) = poke32be (castPtr ptr) w
 
 data HostAddress6 = HostAddress6 !Word32 !Word32 !Word32 !Word32
+    deriving (Eq, Typeable)
+
+-- | Abbreviated hex form, like @2001:123:4567::89ab:cdef:0@
+instance Show HostAddress6 where
+    -- IPv4-mapped IPv6 address
+    showsPrec p (HostAddress6 0 0 0x0000FFFF ipv4) =
+        showString "::ffff:" . showsPrec p (HostAddress ipv4)
+
+    showsPrec _p (HostAddress6 a b c d) =
+        case longestZeros parts of
+            Nothing -> showParts parts
+            Just (before, after) ->
+                showParts before . showString "::" . showParts after
+      where
+        showParts = foldr (.) id . intersperse (showChar ':') . map showHex
+
+        parts :: [Word16]
+        parts = [ a .>>. 16, a .>>. 0, b .>>. 16, b .>>. 0
+                , c .>>. 16, c .>>. 0, d .>>. 16, d .>>. 0
+                ]
+          where (.>>.) x n = fromIntegral (x `shiftR` n)
+
+        -- Find the longest consecutive run of two or more 0s.  If there are multiple
+        -- winners, pick the leftmost one.  If such a run is found, return the items
+        -- before and after it.
+        longestZeros xs = do
+            n <- maximumMaybe [length g | g@(0:0:_) <- group xs]
+            let (before, _:after) = break (== replicate n 0) (group xs)
+            Just (concat before, concat after)
+
+        maximumMaybe [] = Nothing
+        maximumMaybe xs = Just (maximum xs)
 
 -- | @in6_addr@ (stored in network byte order)
 instance Storable HostAddress6 where
