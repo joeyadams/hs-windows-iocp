@@ -1,10 +1,25 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RecordWildCards #-}
 module IOCP.Winsock.Types (
+    -- * Socket addresses
+    SockAddr(..),
+    peekSockAddr,
+    pokeSockAddr,
+    sizeOfSockAddr,
+    sizeOfSockAddrByFamily,
+    withSockAddr,
+    withNewSockAddr,
+
+    Family(..),
+    CFamily,
+    packFamily,
+    unpackFamily,
+
+    PortNumber(..),
     HostAddress(..),
     HostAddress6(..),
-    PortNumber(..),
 ) where
 
 import Control.Applicative
@@ -13,12 +28,110 @@ import Data.List
 import Data.Typeable (Typeable)
 import Data.Word
 import Foreign
+import Foreign.C.Types (CInt(..), CSize(..))
 import Numeric (showInt, showHex)
 
 #include <winsock2.h>
 #include <ws2tcpip.h>
 
 #let alignment t = "%lu", (unsigned long)offsetof(struct {char x__; t (y__); }, y__)
+
+data SockAddr
+  = SockAddrInet
+    { sin_port :: PortNumber
+    , sin_addr :: HostAddress
+    }
+  | SockAddrInet6
+    { sin6_port     :: PortNumber
+    , sin6_flowinfo :: Word32
+    , sin6_addr     :: HostAddress6
+    , sin6_scope_id :: Word32
+    }
+  deriving (Eq, Typeable)
+
+-- | Read a @struct sockaddr@.  Return 'Left' if it has an
+-- unknown address family.
+peekSockAddr :: Ptr SockAddr -> IO (Either CFamily SockAddr)
+peekSockAddr p = do
+    family <- (#peek struct sockaddr, sa_family) p
+    case family :: CFamily of
+        (#const AF_INET) -> do
+            sin_port <- (#peek struct sockaddr_in, sin_port) p
+            sin_addr <- (#peek struct sockaddr_in, sin_addr) p
+            return $ Right $ SockAddrInet{..}
+        (#const AF_INET6) -> do
+            sin6_port     <- (#peek struct sockaddr_in6, sin6_port)     p
+            sin6_flowinfo <- (#peek struct sockaddr_in6, sin6_flowinfo) p
+            sin6_addr     <- (#peek struct sockaddr_in6, sin6_addr)     p
+            sin6_scope_id <- (#peek struct sockaddr_in6, sin6_scope_id) p
+            return $ Right $ SockAddrInet6{..}
+        _ -> return $ Left family
+
+pokeSockAddr :: Ptr SockAddr -> SockAddr -> IO ()
+pokeSockAddr p SockAddrInet{..} = do
+    let sin_family = (#const AF_INET) :: CFamily
+    zeroMemory p (#const sizeof(struct sockaddr_in))
+    (#poke struct sockaddr_in, sin_family) p sin_family
+    (#poke struct sockaddr_in, sin_port)   p sin_port
+    (#poke struct sockaddr_in, sin_addr)   p sin_addr
+pokeSockAddr p SockAddrInet6{..} = do
+    let sin6_family = (#const AF_INET6) :: CFamily
+    zeroMemory p (#const sizeof(struct sockaddr_in6))
+    (#poke struct sockaddr_in6, sin6_family)   p sin6_family
+    (#poke struct sockaddr_in6, sin6_port)     p sin6_port
+    (#poke struct sockaddr_in6, sin6_flowinfo) p sin6_flowinfo
+    (#poke struct sockaddr_in6, sin6_addr)     p sin6_addr
+    (#poke struct sockaddr_in6, sin6_scope_id) p sin6_scope_id
+
+-- | Computes the storage requirements (in bytes) of the given
+-- 'SockAddr'.  This function differs from 'Foreign.Storable.sizeOf'
+-- in that the value of the argument /is/ used.
+sizeOfSockAddr :: SockAddr -> Int
+sizeOfSockAddr SockAddrInet{}  = #const sizeof(struct sockaddr_in)
+sizeOfSockAddr SockAddrInet6{} = #const sizeof(struct sockaddr_in6)
+
+-- | Computes the storage requirements (in bytes) required for a
+-- 'SockAddr' with the given 'Family'.  The 'Family' must correspond to a
+-- 'SockAddr' structure (so it can't be 'AF_UNSPEC', for example).
+sizeOfSockAddrByFamily :: Family -> Int
+sizeOfSockAddrByFamily AF_INET  = #const sizeof(struct sockaddr_in)
+sizeOfSockAddrByFamily AF_INET6 = #const sizeof(struct sockaddr_in6)
+sizeOfSockAddrByFamily f = error $ "IOCP.Winsock.Types: sizeOfSockAddrByFamily " ++ show f
+
+-- | Use a 'SockAddr' with a function requiring a pointer to a
+-- @struct sockaddr@ and its length.
+withSockAddr :: SockAddr -> (Ptr SockAddr -> Int -> IO a) -> IO a
+withSockAddr addr f = do
+    let sz = sizeOfSockAddr addr
+    allocaBytes sz $ \p -> pokeSockAddr p addr >> f p sz
+
+-- | Create a new 'SockAddr' for use with a function requiring a pointer to a
+-- @struct sockaddr@ and its length.  The bytes are zeroed out.
+withNewSockAddr :: Family -> (Ptr SockAddr -> Int -> IO a) -> IO a
+withNewSockAddr family f = do
+    let sz = sizeOfSockAddrByFamily family
+    allocaBytes sz $ \ptr -> zeroMemory ptr (fromIntegral sz) >> f ptr sz
+
+data Family
+  = AF_UNSPEC
+  | AF_INET
+  | AF_INET6
+  deriving (Eq, Show, Typeable)
+
+type CFamily = #type u_short
+
+packFamily :: Family -> CFamily
+packFamily f = case f of
+    AF_UNSPEC -> #const AF_UNSPEC
+    AF_INET   -> #const AF_INET
+    AF_INET6  -> #const AF_INET6
+
+unpackFamily :: CFamily -> Maybe Family
+unpackFamily n = case n of
+    (#const AF_UNSPEC) -> Just AF_UNSPEC
+    (#const AF_INET)   -> Just AF_INET
+    (#const AF_INET6)  -> Just AF_INET6
+    _ -> Nothing
 
 -- |
 -- NOTE: the network package uses network byte order for the 'Word32' value,
@@ -155,3 +268,9 @@ x .>>. i = fromIntegral (x `shiftR` i)
 
 delimit :: Char -> [ShowS] -> ShowS
 delimit delim = foldr (.) id . intersperse (showChar delim)
+
+foreign import ccall unsafe "string.h memset"
+    memset :: Ptr a -> CInt -> CSize -> IO ()
+
+zeroMemory :: Ptr a -> CSize -> IO ()
+zeroMemory dest nbytes = memset dest 0 nbytes
