@@ -34,13 +34,10 @@ instance Show HostAddress where
     -- thread safety, since the address returned might be modified by
     -- another green thread.  This is clearer, anyway.
     showsPrec _p (HostAddress a) =
-        showInt (a .>>. 24) . showChar '.' .
-        showInt (a .>>. 16) . showChar '.' .
-        showInt (a .>>.  8) . showChar '.' .
-        showInt (a .>>.  0)
+        delimit '.' $ map showInt parts
       where
-        (.>>.) :: Word32 -> Int -> Word8
-        (.>>.) x n = fromIntegral (x `shiftR` n)
+        parts :: [Word8]
+        parts = [a .>>. 24, a .>>. 16, a .>>. 8, a .>>. 0]
 
 -- | @in_addr@ (stored in network byte order)
 instance Storable HostAddress where
@@ -64,13 +61,12 @@ instance Show HostAddress6 where
             Just (before, after) ->
                 showParts before . showString "::" . showParts after
       where
-        showParts = foldr (.) id . intersperse (showChar ':') . map showHex
-
         parts :: [Word16]
         parts = [ a .>>. 16, a .>>. 0, b .>>. 16, b .>>. 0
                 , c .>>. 16, c .>>. 0, d .>>. 16, d .>>. 0
                 ]
-          where (.>>.) x n = fromIntegral (x `shiftR` n)
+
+        showParts = delimit ':' . map showHex
 
         -- Find the longest consecutive run of two or more 0s.  If there are multiple
         -- winners, pick the leftmost one.  If such a run is found, return the items
@@ -116,10 +112,12 @@ instance Storable PortNumber where
     peek ptr = PortNumber <$> peek16be (castPtr ptr)
     poke ptr (PortNumber w) = poke16be (castPtr ptr) w
 
+------------------------------------------------------------------------
+-- Utilities
+
 -- | Read a 'Word16' stored in network byte order (big endian).
 peek16be :: Ptr Word8 -> IO Word16
 peek16be ptr = do
-    let x .<<. i = fromIntegral x `shiftL` i
     a0 <- peekElemOff ptr 0
     a1 <- peekElemOff ptr 1
     return $! (a0 .<<. 8) .|. (a1 .<<. 0)
@@ -127,14 +125,12 @@ peek16be ptr = do
 -- | Write a 'Word16' in network byte order (big endian).
 poke16be :: Ptr Word8 -> Word16 -> IO ()
 poke16be ptr a = do
-    let x .>>. i = fromIntegral (x `shiftR` i)
     pokeElemOff ptr 0 (a .>>. 8)
     pokeElemOff ptr 1 (a .>>. 0)
 
 -- | Read a 'Word32' stored in network byte order (big endian).
 peek32be :: Ptr Word8 -> IO Word32
 peek32be ptr = do
-    let x .<<. i = fromIntegral x `shiftL` i
     a0 <- peekElemOff ptr 0
     a1 <- peekElemOff ptr 1
     a2 <- peekElemOff ptr 2
@@ -144,8 +140,18 @@ peek32be ptr = do
 -- | Write a 'Word32' in network byte order (big endian).
 poke32be :: Ptr Word8 -> Word32 -> IO ()
 poke32be ptr a = do
-    let x .>>. i = fromIntegral (x `shiftR` i)
     pokeElemOff ptr 0 (a .>>. 24)
     pokeElemOff ptr 1 (a .>>. 16)
     pokeElemOff ptr 2 (a .>>.  8)
     pokeElemOff ptr 3 (a .>>.  0)
+
+-- | Extend and shift left.  Used to construct big words from little ones.
+(.<<.) :: (Integral a, Num b, Bits b) => a -> Int -> b
+x .<<. i = fromIntegral x `shiftL` i
+
+-- | Shift right and truncate.  Used to extract little words from big ones.
+(.>>.) :: (Integral a, Bits a, Num b) => a -> Int -> b
+x .>>. i = fromIntegral (x `shiftR` i)
+
+delimit :: Char -> [ShowS] -> ShowS
+delimit delim = foldr (.) id . intersperse (showChar delim)
