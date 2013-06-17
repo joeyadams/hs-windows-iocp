@@ -1,9 +1,15 @@
 {-# LANGUAGE CPP #-}
 module IOCP.Winsock (
-    Socket,
     socket,
     close,
     bind,
+
+    -- * Types
+    Socket,
+    Family(..),
+    SocketType(..),
+    Protocol(..),
+    SockAddr(..),
 ) where
 
 import IOCP.Windows
