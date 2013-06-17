@@ -74,6 +74,7 @@ instance Show ErrCode where
         f #{const ERROR_CONNECTION_REFUSED} = "ERROR_CONNECTION_REFUSED"  -- 1225
         f #{const WSAEINTR}                 = "WSAEINTR"                  -- 10004
         f #{const WSAEFAULT}                = "WSAEFAULT"                 -- 10014
+        f #{const WSAEINVAL}                = "WSAEINVAL"                 -- 10022
         f #{const WSAEAFNOSUPPORT}          = "WSAEAFNOSUPPORT"           -- 10047
         f #{const WSAEISCONN}               = "WSAEISCONN"                -- 10056
         f #{const WSAENOTCONN}              = "WSAENOTCONN"               -- 10057
