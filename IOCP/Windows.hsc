@@ -18,6 +18,7 @@ module IOCP.Windows (
     -- * System errors
     ErrCode(..),
     e_WAIT_TIMEOUT,
+    e_ERROR_IO_PENDING,
     e_WSANOTINITIALISED,
     getLastError,
     throwGetLastError,
@@ -68,12 +69,17 @@ instance Show ErrCode where
         -- Add error codes here as needed.
         f #{const ERROR_SUCCESS}      = "ERROR_SUCCESS"     -- 0
         f #{const WAIT_TIMEOUT}       = "WAIT_TIMEOUT"      -- 258
+        f #{const ERROR_IO_PENDING}   = "ERROR_IO_PENDING"  -- 997
         f #{const WSAEINTR}           = "WSAEINTR"          -- 10004
         f #{const WSANOTINITIALISED}  = "WSANOTINITIALISED" -- 10093
         f _ = "error code " ++ show n
 
 e_WAIT_TIMEOUT :: ErrCode
 e_WAIT_TIMEOUT = ErrCode #const WAIT_TIMEOUT
+
+-- | Same as @WSA_IO_PENDING@
+e_ERROR_IO_PENDING :: ErrCode
+e_ERROR_IO_PENDING = ErrCode #const ERROR_IO_PENDING
 
 e_WSANOTINITIALISED :: ErrCode
 e_WSANOTINITIALISED = ErrCode #const WSANOTINITIALISED

@@ -1,3 +1,4 @@
+#include "HsFFI.h"
 #include <stdlib.h>
 #include <string.h>
 #include <windows.h>
@@ -115,23 +116,10 @@ fail0:
     return NULL;
 }
 
-BOOL iocp_winsock_connect(Winsock *winsock, SOCKET sock, SOCKADDR *addr, int addrLen, OVERLAPPED *ol)
+HsBool iocp_winsock_connect(Winsock *winsock, HANDLE h, SOCKADDR *addr, int addrLen, OVERLAPPED *ol)
 {
-    // ConnectEx requires the socket to be initially bound.
-    {
-        struct sockaddr_in addr;
-        int rc;
-        memset(&addr, 0, sizeof(addr));
-        addr.sin_family      = AF_INET;
-        addr.sin_addr.s_addr = INADDR_ANY;
-        addr.sin_port        = 0;
-        rc = bind(sock, (SOCKADDR *) &addr, sizeof(addr));
-        if (rc != 0)
-            return FALSE;
-    }
-
-    BOOL ok = winsock->ConnectEx(sock, addr, addrLen, NULL, 0, NULL, ol);
-    return (ok || WSAGetLastError() == ERROR_IO_PENDING);
+    BOOL b = winsock->ConnectEx((SOCKET) h, addr, addrLen, NULL, 0, NULL, ol);
+    return b ? HS_BOOL_TRUE : HS_BOOL_FALSE;
 }
 
 BOOL iocp_winsock_recv(SOCKET sock, char *buf, u_long bufsize, OVERLAPPED *ol)

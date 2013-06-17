@@ -3,8 +3,10 @@
 module IOCP.Winsock (
     initWinsock,
     socket,
+    associateSocket,
     close,
     bind,
+    connect,
 
     -- * Types
     Winsock,
@@ -15,6 +17,7 @@ module IOCP.Winsock (
     SockAddr(..),
 ) where
 
+import IOCP.Bindings
 import IOCP.Windows
 import IOCP.Winsock.Types
 
@@ -52,6 +55,12 @@ socket f t mp =
              (packSocketType t)
              (maybe noProtocol packProtocol mp)
 
+castSOCKETToHANDLE :: Socket -> HANDLE
+castSOCKETToHANDLE (Socket n) = wordPtrToPtr (fromIntegral n)
+
+associateSocket :: CompletionPort a -> Socket -> IO (Handle a)
+associateSocket cp sock = associate cp (castSOCKETToHANDLE sock)
+
 foreign import WINDOWS_CCONV "winsock2.h closesocket"
     c_close :: Socket -> IO CInt
 
@@ -68,3 +77,14 @@ bind sock addr =
     failIf_ (/= 0) "bind" $
     withSockAddr addr $ \ptr len ->
     c_bind sock ptr len
+
+foreign import ccall "iocp_winsock_connect"
+    c_iocp_winsock_connect
+        :: Winsock -> Handle a -> Ptr SockAddr -> CInt -> Overlapped a -> IO Bool
+
+-- | Uses @ConnectEx@, which requires the socket to be initially bound.
+connect :: Winsock -> Handle a -> SockAddr -> Overlapped a -> IO ()
+connect ws h addr ol =
+    failIf_ (== False) "connect" $
+    withSockAddr addr $ \ptr len ->
+    c_iocp_winsock_connect ws h ptr len ol
