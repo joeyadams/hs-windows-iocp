@@ -3,6 +3,8 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 module IOCP.Winsock.Types (
+    Socket(..),
+
     -- * Socket addresses
     SockAddr(..),
     peekSockAddr,
@@ -35,6 +37,9 @@ import Numeric (showInt, showHex)
 #include <ws2tcpip.h>
 
 #let alignment t = "%lu", (unsigned long)offsetof(struct {char x__; t (y__); }, y__)
+
+newtype Socket = Socket (#type SOCKET)
+  deriving (Eq, Ord, Show, Typeable)
 
 data SockAddr
   = SockAddrInet
@@ -100,31 +105,32 @@ pokeSockAddr p SockAddrInet6{..} = do
 -- | Computes the storage requirements (in bytes) of the given
 -- 'SockAddr'.  This function differs from 'Foreign.Storable.sizeOf'
 -- in that the value of the argument /is/ used.
-sizeOfSockAddr :: SockAddr -> Int
+sizeOfSockAddr :: SockAddr -> CInt
 sizeOfSockAddr SockAddrInet{}  = #const sizeof(struct sockaddr_in)
 sizeOfSockAddr SockAddrInet6{} = #const sizeof(struct sockaddr_in6)
 
 -- | Computes the storage requirements (in bytes) required for a
 -- 'SockAddr' with the given 'Family'.  The 'Family' must correspond to a
 -- 'SockAddr' structure (so it can't be 'AF_UNSPEC', for example).
-sizeOfSockAddrByFamily :: Family -> Int
+sizeOfSockAddrByFamily :: Family -> CInt
 sizeOfSockAddrByFamily AF_INET  = #const sizeof(struct sockaddr_in)
 sizeOfSockAddrByFamily AF_INET6 = #const sizeof(struct sockaddr_in6)
 sizeOfSockAddrByFamily f = error $ "IOCP.Winsock.Types: sizeOfSockAddrByFamily " ++ show f
 
 -- | Use a 'SockAddr' with a function requiring a pointer to a
 -- @struct sockaddr@ and its length.
-withSockAddr :: SockAddr -> (Ptr SockAddr -> Int -> IO a) -> IO a
+withSockAddr :: SockAddr -> (Ptr SockAddr -> CInt -> IO a) -> IO a
 withSockAddr addr f = do
     let sz = sizeOfSockAddr addr
-    allocaBytes sz $ \p -> pokeSockAddr p addr >> f p sz
+    allocaBytes (fromIntegral sz) $ \p -> pokeSockAddr p addr >> f p sz
 
 -- | Create a new 'SockAddr' for use with a function requiring a pointer to a
 -- @struct sockaddr@ and its length.  The bytes are zeroed out.
-withNewSockAddr :: Family -> (Ptr SockAddr -> Int -> IO a) -> IO a
+withNewSockAddr :: Family -> (Ptr SockAddr -> CInt -> IO a) -> IO a
 withNewSockAddr family f = do
     let sz = sizeOfSockAddrByFamily family
-    allocaBytes sz $ \ptr -> zeroMemory ptr (fromIntegral sz) >> f ptr sz
+    allocaBytes (fromIntegral sz) $ \ptr ->
+        zeroMemory ptr (fromIntegral sz) >> f ptr sz
 
 data Family
   = AF_UNSPEC
