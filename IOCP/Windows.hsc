@@ -26,11 +26,6 @@ module IOCP.Windows (
     -- ** Guards for system calls that might fail
     failIf,
     failIf_,
-    failIfNull,
-    failIfZero,
-    failIfFalse_,
-    failUnlessSuccess,
-    failUnlessSuccessOr,
 ) where
 
 import Control.Exception
@@ -139,24 +134,3 @@ failIf_ :: (a -> Bool) -> String -> IO a -> IO ()
 failIf_ p wh act = do
     v <- act
     if p v then throwGetLastError wh else return ()
-
-failIfNull :: String -> IO (Ptr a) -> IO (Ptr a)
-failIfNull = failIf (== nullPtr)
-
-failIfZero :: (Eq a, Num a) => String -> IO a -> IO a
-failIfZero = failIf (== 0)
-
-failIfFalse_ :: String -> IO Bool -> IO ()
-failIfFalse_ = failIf_ not
-
-failUnlessSuccess :: String -> IO ErrCode -> IO ()
-failUnlessSuccess loc act = do
-    r <- act
-    if r == 0 then return () else throwWinError loc r
-
-failUnlessSuccessOr :: ErrCode -> String -> IO ErrCode -> IO Bool
-failUnlessSuccessOr val loc act = do
-    r <- act
-    if r == 0 then return False
-        else if r == val then return True
-        else throwWinError loc r
