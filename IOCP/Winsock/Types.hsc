@@ -22,18 +22,21 @@ module IOCP.Winsock.Types (
     -- ** Family
     Family(..),
     CFamily(..),
+    aF_UNSPEC,
     packFamily,
     unpackFamily,
 
     -- ** SocketType
     SocketType(..),
     CSocketType(..),
+    noSocketType,
     packSocketType,
     unpackSocketType,
 
     -- ** Protocol
     Protocol(..),
     CProtocol(..),
+    noProtocol,
     packProtocol,
     unpackProtocol,
 ) where
@@ -128,12 +131,10 @@ sizeOfSockAddr SockAddrInet{}  = #const sizeof(struct sockaddr_in)
 sizeOfSockAddr SockAddrInet6{} = #const sizeof(struct sockaddr_in6)
 
 -- | Computes the storage requirements (in bytes) required for a
--- 'SockAddr' with the given 'Family'.  The 'Family' must correspond to a
--- 'SockAddr' structure (so it can't be 'AF_UNSPEC', for example).
+-- 'SockAddr' with the given 'Family'.
 sizeOfSockAddrByFamily :: Family -> CInt
 sizeOfSockAddrByFamily AF_INET  = #const sizeof(struct sockaddr_in)
 sizeOfSockAddrByFamily AF_INET6 = #const sizeof(struct sockaddr_in6)
-sizeOfSockAddrByFamily f = error $ "IOCP.Winsock.Types: sizeOfSockAddrByFamily " ++ show f
 
 -- | Use a 'SockAddr' with a function requiring a pointer to a
 -- @struct sockaddr@ and its length.
@@ -246,23 +247,24 @@ instance Storable PortNumber where
 -- Enumerations
 
 data Family
-  = AF_UNSPEC
-  | AF_INET
+  = AF_INET
   | AF_INET6
   deriving (Eq, Show, Typeable)
 
 newtype CFamily = CFamily CInt
   deriving (Eq, Show, Typeable)
 
+aF_UNSPEC :: CFamily
+aF_UNSPEC = CFamily #const AF_UNSPEC
+
+-- | 'Nothing' means @AF_UNSPEC@.
 packFamily :: Family -> CFamily
 packFamily f = case f of
-    AF_UNSPEC -> CFamily #const AF_UNSPEC
     AF_INET   -> CFamily #const AF_INET
     AF_INET6  -> CFamily #const AF_INET6
 
 unpackFamily :: CFamily -> Maybe Family
 unpackFamily (CFamily n) = case n of
-    (#const AF_UNSPEC) -> Just AF_UNSPEC
     (#const AF_INET)   -> Just AF_INET
     (#const AF_INET6)  -> Just AF_INET6
     _ -> Nothing
@@ -274,6 +276,9 @@ data SocketType
 
 newtype CSocketType = CSocketType CInt
   deriving (Eq, Show, Typeable)
+
+noSocketType :: CSocketType
+noSocketType = CSocketType 0
 
 packSocketType :: SocketType -> CSocketType
 packSocketType t = case t of
@@ -294,10 +299,11 @@ data Protocol
 newtype CProtocol = CProtocol CInt
   deriving (Eq, Show, Typeable)
 
--- | 'Nothing' means the caller wants the provider to choose a protocol.
-packProtocol :: Maybe Protocol -> CProtocol
-packProtocol Nothing = CProtocol 0
-packProtocol (Just p) = case p of
+noProtocol :: CProtocol
+noProtocol = CProtocol 0
+
+packProtocol :: Protocol -> CProtocol
+packProtocol p = case p of
     IPPROTO_TCP -> CProtocol #const IPPROTO_TCP
     IPPROTO_UDP -> CProtocol #const IPPROTO_UDP
 
