@@ -1,10 +1,13 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module IOCP.Winsock (
+    initWinsock,
     socket,
     close,
     bind,
 
     -- * Types
+    Winsock,
     Socket,
     Family(..),
     SocketType(..),
@@ -29,6 +32,15 @@ import Foreign.C
 ##endif
 
 #include <winsock2.h>
+
+newtype Winsock = Winsock (Ptr ())
+  deriving (Eq, Show, Storable)
+
+foreign import ccall unsafe "iocp_winsock_init"
+    c_iocp_winsock_init :: IO Winsock
+
+initWinsock :: IO Winsock
+initWinsock = failIf (== Winsock nullPtr) "initWinsock" c_iocp_winsock_init
 
 foreign import WINDOWS_CCONV unsafe "winsock2.h socket"
     c_socket :: CFamily -> CSocketType -> CProtocol -> IO Socket
