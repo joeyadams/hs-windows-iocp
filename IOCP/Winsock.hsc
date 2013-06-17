@@ -1,6 +1,8 @@
 {-# LANGUAGE CPP #-}
 module IOCP.Winsock (
     Socket,
+    socket,
+    close,
     bind,
 ) where
 
@@ -21,6 +23,24 @@ import Foreign.C
 ##endif
 
 #include <winsock2.h>
+
+foreign import WINDOWS_CCONV unsafe "winsock2.h socket"
+    c_socket :: CFamily -> CSocketType -> CProtocol -> IO Socket
+
+socket :: Family -> SocketType -> Maybe Protocol -> IO Socket
+socket f t mp =
+    failIf (== iNVALID_SOCKET) "socket" $
+    c_socket (packFamily f)
+             (packSocketType t)
+             (maybe noProtocol packProtocol mp)
+
+foreign import WINDOWS_CCONV "winsock2.h closesocket"
+    c_close :: Socket -> IO CInt
+
+close :: Socket -> IO ()
+close sock =
+    failIf_ (/= 0) "close" $
+    c_close sock
 
 foreign import WINDOWS_CCONV "winsock2.h bind"
     c_bind :: Socket -> Ptr SockAddr -> CInt -> IO CInt
