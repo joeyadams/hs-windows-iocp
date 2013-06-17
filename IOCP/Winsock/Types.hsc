@@ -47,7 +47,21 @@ data SockAddr
     , sin6_addr     :: HostAddress6
     , sin6_scope_id :: Word32
     }
+    -- ^ NOTE: The format of sin6_flowinfo and sin6_scope_id is not specified.
+    --   Avoid relying on particular content.  This library does not perform byte
+    --   swapping on these fields like it does for sin6_port and sin6_addr.
   deriving (Eq, Typeable)
+
+instance Show SockAddr where
+    showsPrec _p SockAddrInet{..} =
+        shows sin_addr . showChar ':' . shows sin_port
+    showsPrec _p SockAddrInet6{..} =
+        -- TODO: should we show sin6_flowinfo?  If so, how?
+        showChar '[' . shows sin6_addr .
+        (if sin6_scope_id == 0
+            then id
+            else showChar '%' . shows sin6_scope_id) .
+        showString "]:" . shows sin6_port
 
 -- | Read a @struct sockaddr@.  Return 'Left' if it has an
 -- unknown address family.
@@ -165,8 +179,8 @@ data HostAddress6 = HostAddress6 !Word32 !Word32 !Word32 !Word32
 -- | Abbreviated hex form, like @2001:123:4567::89ab:cdef:0@
 instance Show HostAddress6 where
     -- IPv4-mapped IPv6 address
-    showsPrec p (HostAddress6 0 0 0x0000FFFF ipv4) =
-        showString "::ffff:" . showsPrec p (HostAddress ipv4)
+    showsPrec _p (HostAddress6 0 0 0x0000FFFF ipv4) =
+        showString "::ffff:" . shows (HostAddress ipv4)
 
     showsPrec _p (HostAddress6 a b c d) =
         case longestZeros parts of
