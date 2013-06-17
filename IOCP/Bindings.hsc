@@ -5,6 +5,7 @@ module IOCP.Bindings (
     newCompletionPort,
     closeCompletionPort,
     associate,
+    closeHandle,
     newOverlapped,
     newOverlappedWithOffset,
     freeOverlapped,
@@ -13,9 +14,6 @@ module IOCP.Bindings (
     postQueuedCompletionStatus,
     postQueuedCompletionStatusNB,
     postValue,
-
-    -- * Miscellaneous
-    closeHandle,
 
     -- * Types
     CompletionPort(..),
@@ -47,13 +45,16 @@ newCompletionPort =
         c_CreateIoCompletionPort iNVALID_HANDLE_VALUE (CompletionPort nullPtr) 0 1
 
 closeCompletionPort :: CompletionPort a -> IO ()
-closeCompletionPort (CompletionPort h) = closeHandle h
+closeCompletionPort (CompletionPort h) = closeHANDLE "closeCompletionPort" h
 
 associate :: CompletionPort a -> HANDLE -> IO (Handle a)
 associate cport handle = do
     failIf_ (/= cport) "associate" $
         c_CreateIoCompletionPort handle cport 0 0
     return (Handle handle)
+
+closeHandle :: Handle a -> IO ()
+closeHandle (Handle h) = closeHANDLE "closeHandle" h
 
 -- | Allocate a new
 -- <http://msdn.microsoft.com/en-us/library/windows/desktop/ms684342%28v=vs.85%29.aspx OVERLAPPED>
@@ -148,10 +149,10 @@ data Completion a = Completion
 
 ------------------------------------------------------------------------
 
-closeHandle :: HANDLE -> IO ()
-closeHandle h = do
+closeHANDLE :: String -> HANDLE -> IO ()
+closeHANDLE loc h = do
     b <- c_CloseHandle h
-    if b /= 0 then return () else throwGetLastError "closeHandle"
+    if b /= 0 then return () else throwGetLastError loc
 
 ------------------------------------------------------------------------
 
