@@ -4,6 +4,7 @@
 {-# LANGUAGE RecordWildCards #-}
 module IOCP.Winsock.Types (
     Socket(..),
+    iNVALID_SOCKET,
 
     -- * Socket addresses
     SockAddr(..),
@@ -57,6 +58,9 @@ import Numeric (showInt, showHex)
 
 newtype Socket = Socket (#type SOCKET)
   deriving (Eq, Ord, Show, Typeable)
+
+iNVALID_SOCKET :: Socket
+iNVALID_SOCKET = Socket #const INVALID_SOCKET
 
 data SockAddr
   = SockAddrInet
