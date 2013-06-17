@@ -19,10 +19,23 @@ module IOCP.Winsock.Types (
     HostAddress6(..),
 
     -- * Enumerations
+    -- ** Family
     Family(..),
-    CFamily,
+    CFamily(..),
     packFamily,
     unpackFamily,
+
+    -- ** SocketType
+    SocketType(..),
+    CSocketType(..),
+    packSocketType,
+    unpackSocketType,
+
+    -- ** Protocol
+    Protocol(..),
+    CProtocol(..),
+    packProtocol,
+    unpackProtocol,
 ) where
 
 import Control.Applicative
@@ -252,6 +265,46 @@ unpackFamily (CFamily n) = case n of
     (#const AF_UNSPEC) -> Just AF_UNSPEC
     (#const AF_INET)   -> Just AF_INET
     (#const AF_INET6)  -> Just AF_INET6
+    _ -> Nothing
+
+data SocketType
+  = SOCK_STREAM
+  | SOCK_DGRAM
+  deriving (Eq, Show, Typeable)
+
+newtype CSocketType = CSocketType CInt
+  deriving (Eq, Show, Typeable)
+
+packSocketType :: SocketType -> CSocketType
+packSocketType t = case t of
+    SOCK_STREAM -> CSocketType #const SOCK_STREAM
+    SOCK_DGRAM  -> CSocketType #const SOCK_DGRAM
+
+unpackSocketType :: CSocketType -> Maybe SocketType
+unpackSocketType (CSocketType n) = case n of
+    (#const SOCK_STREAM) -> Just SOCK_STREAM
+    (#const SOCK_DGRAM)  -> Just SOCK_DGRAM
+    _ -> Nothing
+
+data Protocol
+  = IPPROTO_TCP
+  | IPPROTO_UDP
+  deriving (Eq, Show, Typeable)
+
+newtype CProtocol = CProtocol CInt
+  deriving (Eq, Show, Typeable)
+
+-- | 'Nothing' means the caller wants the provider to choose a protocol.
+packProtocol :: Maybe Protocol -> CProtocol
+packProtocol Nothing = CProtocol 0
+packProtocol (Just p) = case p of
+    IPPROTO_TCP -> CProtocol #const IPPROTO_TCP
+    IPPROTO_UDP -> CProtocol #const IPPROTO_UDP
+
+unpackProtocol :: CProtocol -> Maybe Protocol
+unpackProtocol (CProtocol n) = case n of
+    (#const IPPROTO_TCP) -> Just IPPROTO_TCP
+    (#const IPPROTO_UDP) -> Just IPPROTO_UDP
     _ -> Nothing
 
 ------------------------------------------------------------------------
