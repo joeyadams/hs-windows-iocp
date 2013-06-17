@@ -74,8 +74,8 @@ data SockAddr
     }
   | SockAddrInet6
     { sin6_port     :: PortNumber
-    , sin6_flowinfo :: Word32
     , sin6_addr     :: HostAddress6
+    , sin6_flowinfo :: Word32
     , sin6_scope_id :: Word32
     }
     -- ^ NOTE: The format of sin6_flowinfo and sin6_scope_id is not specified.
