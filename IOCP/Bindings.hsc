@@ -6,10 +6,12 @@ module IOCP.Bindings (
     closeCompletionPort,
     associate,
     newOverlapped,
+    newOverlappedWithOffset,
     freeOverlapped,
     getQueuedCompletionStatus,
     iNFINITE,
     postQueuedCompletionStatus,
+    postQueuedCompletionStatusNB,
     postValue,
 
     -- * Miscellaneous
@@ -59,10 +61,13 @@ associate cport handle = do
 -- pointer may be passed to a system call that takes an @LPOVERLAPPED@,
 -- provided the @Handle@ was associated with a 'CompletionPort' with the
 -- same type @a@.
-newOverlapped :: Word64 -- ^ Offset/OffsetHigh
-              -> a      -- ^ Application context (stored alongside the @OVERLAPPED@ structure)
-              -> IO (Overlapped a)
-newOverlapped offset ctx =
+newOverlapped :: a -> IO (Overlapped a)
+newOverlapped = newOverlappedWithOffset 0
+
+-- | Like 'newOverlapped', but specify a value for the Offset/OffsetHigh fields
+-- of the @OVERLAPPED@ structure.
+newOverlappedWithOffset :: Word64 -> a -> IO (Overlapped a)
+newOverlappedWithOffset offset ctx =
     bracketOnError (newStablePtr ctx) freeStablePtr $ \ptr ->
         failIf (== Overlapped nullPtr) "newOverlapped" $
             c_iocp_new_overlapped offset ptr
@@ -110,18 +115,20 @@ getQueuedCompletionStatus cport timeout =
         numBytes <- peek pNumBytes
         return $! Just $! Completion{ cValue = value, cNumBytes = numBytes, cError = err }
 
-postQueuedCompletionStatus
-    :: CompletionPort a
-    -> DWORD  -- ^ Number of bytes transferred
+postQueuedCompletionStatus :: CompletionPort a -> Overlapped a -> IO ()
+postQueuedCompletionStatus = postQueuedCompletionStatusNB 0
+
+postQueuedCompletionStatusNB
+    :: DWORD  -- ^ Number of bytes transferred
+    -> CompletionPort a
     -> Overlapped a
     -> IO ()
-postQueuedCompletionStatus cport numBytes ol =
+postQueuedCompletionStatusNB numBytes cport ol =
     failIf_ (== 0) "postQueuedCompletionStatus" $
     c_PostQueuedCompletionStatus cport numBytes 0 ol
 
 postValue :: CompletionPort a -> a -> IO ()
-postValue cport a =
-    newOverlapped 0 a >>= postQueuedCompletionStatus cport 0
+postValue cport a = newOverlapped a >>= postQueuedCompletionStatus cport
 
 newtype CompletionPort a = CompletionPort HANDLE
     deriving (Eq, Show, Storable)
