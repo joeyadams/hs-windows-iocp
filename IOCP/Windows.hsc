@@ -67,11 +67,18 @@ newtype ErrCode = ErrCode DWORD
 instance Show ErrCode where
     show (ErrCode n) = f n where
         -- Add error codes here as needed.
-        f #{const ERROR_SUCCESS}      = "ERROR_SUCCESS"     -- 0
-        f #{const WAIT_TIMEOUT}       = "WAIT_TIMEOUT"      -- 258
-        f #{const ERROR_IO_PENDING}   = "ERROR_IO_PENDING"  -- 997
-        f #{const WSAEINTR}           = "WSAEINTR"          -- 10004
-        f #{const WSANOTINITIALISED}  = "WSANOTINITIALISED" -- 10093
+        f #{const ERROR_SUCCESS}            = "ERROR_SUCCESS"             -- 0
+        f #{const WAIT_TIMEOUT}             = "WAIT_TIMEOUT"              -- 258
+        f #{const ERROR_IO_PENDING}         = "ERROR_IO_PENDING"          -- 997
+        f #{const ERROR_INVALID_NETNAME}    = "ERROR_INVALID_NETNAME"     -- 1214
+        f #{const ERROR_CONNECTION_REFUSED} = "ERROR_CONNECTION_REFUSED"  -- 1225
+        f #{const WSAEINTR}                 = "WSAEINTR"                  -- 10004
+        f #{const WSAEFAULT}                = "WSAEFAULT"                 -- 10014
+        f #{const WSAEAFNOSUPPORT}          = "WSAEAFNOSUPPORT"           -- 10047
+        f #{const WSAEISCONN}               = "WSAEISCONN"                -- 10056
+        f #{const WSAENOTCONN}              = "WSAENOTCONN"               -- 10057
+        f #{const WSAETIMEDOUT}             = "WSAETIMEDOUT"              -- 10060
+        f #{const WSANOTINITIALISED}        = "WSANOTINITIALISED"         -- 10093
         f _ = "error code " ++ show n
 
 e_WAIT_TIMEOUT :: ErrCode
