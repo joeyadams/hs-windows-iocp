@@ -21,6 +21,7 @@ library
     exposed-modules:
         IOCP.Bindings
         IOCP.Windows
+        IOCP.Winsock
         IOCP.Winsock.Types
 
     build-tools: hsc2hs
