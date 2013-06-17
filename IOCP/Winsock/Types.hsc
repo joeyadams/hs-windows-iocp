@@ -19,6 +19,11 @@ module IOCP.Winsock.Types (
     HostAddress(..),
     HostAddress6(..),
 
+    -- ** Special constants
+    aNY_PORT,
+    iNADDR_ANY,
+    iN6ADDR_ANY,
+
     -- * Enumerations
     -- ** Family
     Family(..),
@@ -246,6 +251,15 @@ instance Storable PortNumber where
     alignment _ = #{alignment unsigned short}
     peek ptr = PortNumber <$> peek16be (castPtr ptr)
     poke ptr (PortNumber w) = poke16be (castPtr ptr) w
+
+aNY_PORT :: PortNumber
+aNY_PORT = 0
+
+iNADDR_ANY :: HostAddress
+iNADDR_ANY = HostAddress #const INADDR_ANY
+
+iN6ADDR_ANY :: HostAddress6
+iN6ADDR_ANY = HostAddress6 0 0 0 0
 
 ------------------------------------------------------------------------
 -- Enumerations

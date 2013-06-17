@@ -15,6 +15,9 @@ module IOCP.Winsock (
     SocketType(..),
     Protocol(..),
     SockAddr(..),
+    aNY_PORT,
+    iNADDR_ANY,
+    iN6ADDR_ANY,
 ) where
 
 import IOCP.Bindings
