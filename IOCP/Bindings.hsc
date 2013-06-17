@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DoAndIfThenElse #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RankNTypes #-}
 module IOCP.Bindings (
     newCompletionPort,
     closeCompletionPort,
@@ -14,6 +15,10 @@ module IOCP.Bindings (
     postQueuedCompletionStatus,
     postQueuedCompletionStatusNB,
     postValue,
+    cancelIo,
+    CancelIoEx,
+    loadCancelIoEx,
+    runCancelIoEx,
 
     -- * Types
     CompletionPort(..),
@@ -131,6 +136,29 @@ postQueuedCompletionStatusNB numBytes cport ol =
 postValue :: CompletionPort a -> a -> IO ()
 postValue cport a = newOverlapped a >>= postQueuedCompletionStatus cport
 
+-- | Cancel all pending overlapped I\/O issued by the current OS thread on the
+-- given handle.
+cancelIo :: Handle a -> IO ()
+cancelIo h =
+    failIf_ (== 0) "cancelIo" $
+    c_CancelIo h
+
+newtype CancelIoEx = CancelIoEx C_CancelIoEx
+
+loadCancelIoEx :: IO (Maybe CancelIoEx)
+loadCancelIoEx = do
+    fptr <- c_iocp_load_CancelIoEx
+    if fptr == nullFunPtr
+        then return Nothing
+        else return $! Just $! CancelIoEx (mkCancelIoEx fptr)
+
+runCancelIoEx :: CancelIoEx -> Handle a -> Maybe (Overlapped a) -> IO ()
+runCancelIoEx (CancelIoEx f) (Handle h) mol =
+    failIf_ (== 0) "CancelIoEx" $
+    f h (maybe nullPtr fromOverlapped mol)
+  where
+    fromOverlapped (Overlapped ptr) = ptr
+
 newtype CompletionPort a = CompletionPort HANDLE
     deriving (Eq, Show, Storable)
 
@@ -150,9 +178,9 @@ data Completion a = Completion
 ------------------------------------------------------------------------
 
 closeHANDLE :: String -> HANDLE -> IO ()
-closeHANDLE loc h = do
-    b <- c_CloseHandle h
-    if b /= 0 then return () else throwGetLastError loc
+closeHANDLE loc h =
+    failIf_ (== 0) loc $
+    c_CloseHandle h
 
 ------------------------------------------------------------------------
 
@@ -191,3 +219,14 @@ foreign import WINDOWS_CCONV unsafe "windows.h PostQueuedCompletionStatus"
         -> ULONG_PTR          -- ^ dwCompletionKey
         -> Overlapped a       -- ^ lpOverlapped
         -> IO BOOL
+
+foreign import WINDOWS_CCONV unsafe "windows.h CancelIo"
+    c_CancelIo :: Handle a -> IO BOOL
+
+type C_CancelIoEx = HANDLE -> Ptr () -> IO BOOL
+
+foreign import ccall unsafe "iocp_load_CancelIoEx"
+    c_iocp_load_CancelIoEx :: IO (FunPtr C_CancelIoEx)
+
+foreign import WINDOWS_CCONV "dynamic"
+    mkCancelIoEx :: FunPtr C_CancelIoEx -> C_CancelIoEx

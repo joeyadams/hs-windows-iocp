@@ -36,6 +36,15 @@ GetTickCount64_t iocp_load_GetTickCount64(void)
                        "GetTickCount64");
 }
 
+typedef BOOL (WINAPI *CancelIoEx_t)(HANDLE hFile, LPOVERLAPPED lpOverlapped);
+
+CancelIoEx_t iocp_load_CancelIoEx(void)
+{
+    return (CancelIoEx_t)
+        GetProcAddress(GetModuleHandle(TEXT("kernel32.dll")),
+                       "CancelIoEx");
+}
+
 // Original code from Win32 package (errors.c)
 LPWSTR iocp_getErrorMessage(DWORD err)
 {
