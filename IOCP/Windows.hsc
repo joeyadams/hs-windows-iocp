@@ -68,8 +68,11 @@ instance Show ErrCode where
     show (ErrCode n) = f n where
         -- Add error codes here as needed.
         f #{const ERROR_SUCCESS}            = "ERROR_SUCCESS"             -- 0
+        f #{const ERROR_SEM_TIMEOUT}        = "ERROR_SEM_TIMEOUT"         -- 121
         f #{const WAIT_TIMEOUT}             = "WAIT_TIMEOUT"              -- 258
+        f #{const ERROR_OPERATION_ABORTED}  = "ERROR_OPERATION_ABORTED"   -- 995
         f #{const ERROR_IO_PENDING}         = "ERROR_IO_PENDING"          -- 997
+        f #{const ERROR_NOT_FOUND}          = "ERROR_NOT_FOUND"           -- 1168
         f #{const ERROR_INVALID_NETNAME}    = "ERROR_INVALID_NETNAME"     -- 1214
         f #{const ERROR_CONNECTION_REFUSED} = "ERROR_CONNECTION_REFUSED"  -- 1225
         f #{const WSAEINTR}                 = "WSAEINTR"                  -- 10004
