@@ -14,14 +14,15 @@ module IOCP.Winsock.Types (
     withSockAddr,
     withNewSockAddr,
 
+    PortNumber(..),
+    HostAddress(..),
+    HostAddress6(..),
+
+    -- * Enumerations
     Family(..),
     CFamily,
     packFamily,
     unpackFamily,
-
-    PortNumber(..),
-    HostAddress(..),
-    HostAddress6(..),
 ) where
 
 import Control.Applicative
@@ -73,7 +74,7 @@ instance Show SockAddr where
 peekSockAddr :: Ptr SockAddr -> IO (Either CFamily SockAddr)
 peekSockAddr p = do
     family <- (#peek struct sockaddr, sa_family) p
-    case family :: CFamily of
+    case family :: Csa_family of
         (#const AF_INET) -> do
             sin_port <- (#peek struct sockaddr_in, sin_port) p
             sin_addr <- (#peek struct sockaddr_in, sin_addr) p
@@ -84,23 +85,27 @@ peekSockAddr p = do
             sin6_addr     <- (#peek struct sockaddr_in6, sin6_addr)     p
             sin6_scope_id <- (#peek struct sockaddr_in6, sin6_scope_id) p
             return $ Right $ SockAddrInet6{..}
-        _ -> return $ Left family
+        _ -> return $! Left $! CFamily (fromIntegral family)
 
 pokeSockAddr :: Ptr SockAddr -> SockAddr -> IO ()
 pokeSockAddr p SockAddrInet{..} = do
-    let sin_family = (#const AF_INET) :: CFamily
+    let sin_family = (#const AF_INET) :: Csa_family
     zeroMemory p (#const sizeof(struct sockaddr_in))
     (#poke struct sockaddr_in, sin_family) p sin_family
     (#poke struct sockaddr_in, sin_port)   p sin_port
     (#poke struct sockaddr_in, sin_addr)   p sin_addr
 pokeSockAddr p SockAddrInet6{..} = do
-    let sin6_family = (#const AF_INET6) :: CFamily
+    let sin6_family = (#const AF_INET6) :: Csa_family
     zeroMemory p (#const sizeof(struct sockaddr_in6))
     (#poke struct sockaddr_in6, sin6_family)   p sin6_family
     (#poke struct sockaddr_in6, sin6_port)     p sin6_port
     (#poke struct sockaddr_in6, sin6_flowinfo) p sin6_flowinfo
     (#poke struct sockaddr_in6, sin6_addr)     p sin6_addr
     (#poke struct sockaddr_in6, sin6_scope_id) p sin6_scope_id
+
+-- | The type of sa_family, which may be different than the type for the
+-- address family parameter to @socket@.
+type Csa_family = #type u_short
 
 -- | Computes the storage requirements (in bytes) of the given
 -- 'SockAddr'.  This function differs from 'Foreign.Storable.sizeOf'
@@ -131,27 +136,6 @@ withNewSockAddr family f = do
     let sz = sizeOfSockAddrByFamily family
     allocaBytes (fromIntegral sz) $ \ptr ->
         zeroMemory ptr (fromIntegral sz) >> f ptr sz
-
-data Family
-  = AF_UNSPEC
-  | AF_INET
-  | AF_INET6
-  deriving (Eq, Show, Typeable)
-
-type CFamily = #type u_short
-
-packFamily :: Family -> CFamily
-packFamily f = case f of
-    AF_UNSPEC -> #const AF_UNSPEC
-    AF_INET   -> #const AF_INET
-    AF_INET6  -> #const AF_INET6
-
-unpackFamily :: CFamily -> Maybe Family
-unpackFamily n = case n of
-    (#const AF_UNSPEC) -> Just AF_UNSPEC
-    (#const AF_INET)   -> Just AF_INET
-    (#const AF_INET6)  -> Just AF_INET6
-    _ -> Nothing
 
 -- |
 -- NOTE: the network package uses network byte order for the 'Word32' value,
@@ -244,6 +228,31 @@ instance Storable PortNumber where
     alignment _ = #{alignment unsigned short}
     peek ptr = PortNumber <$> peek16be (castPtr ptr)
     poke ptr (PortNumber w) = poke16be (castPtr ptr) w
+
+------------------------------------------------------------------------
+-- Enumerations
+
+data Family
+  = AF_UNSPEC
+  | AF_INET
+  | AF_INET6
+  deriving (Eq, Show, Typeable)
+
+newtype CFamily = CFamily CInt
+  deriving (Eq, Show, Typeable)
+
+packFamily :: Family -> CFamily
+packFamily f = case f of
+    AF_UNSPEC -> CFamily #const AF_UNSPEC
+    AF_INET   -> CFamily #const AF_INET
+    AF_INET6  -> CFamily #const AF_INET6
+
+unpackFamily :: CFamily -> Maybe Family
+unpackFamily (CFamily n) = case n of
+    (#const AF_UNSPEC) -> Just AF_UNSPEC
+    (#const AF_INET)   -> Just AF_INET
+    (#const AF_INET6)  -> Just AF_INET6
+    _ -> Nothing
 
 ------------------------------------------------------------------------
 -- Utilities
