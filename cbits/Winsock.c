@@ -45,23 +45,29 @@ Winsock *iocp_winsock_init(void)
 {
     Winsock *winsock;
     SOCKET sock;
+    DWORD err = 0;
 
     /* Allocate Winsock object */
     winsock = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(*winsock));
     if (winsock == NULL) {
-        SetLastError(ERROR_NOT_ENOUGH_MEMORY);
-        return NULL;
+        err = ERROR_NOT_ENOUGH_MEMORY;
+        goto fail0;
     }
 
     /* Start up Winsock */
     {
         WORD version = MAKEWORD(2, 2);
         int rc = WSAStartup(version, &winsock->wsaData);
-        if (rc != 0)
+        if (rc != 0) {
+            err = GetLastError();
             goto fail1;
+        }
         if (!(LOBYTE(winsock->wsaData.wVersion) == 2 &&
               HIBYTE(winsock->wsaData.wVersion) == 2))
+        {
+            err = WSAVERNOTSUPPORTED;
             goto fail2;
+        }
     }
 
     /* Make a dummy SOCKET needed by WSAIoctl. */
@@ -100,9 +106,12 @@ Winsock *iocp_winsock_init(void)
     return winsock;
 
 fail2:
+    err = GetLastError();
     WSACleanup();
 fail1:
     HeapFree(GetProcessHeap(), 0, winsock);
+fail0:
+    SetLastError(err);
     return NULL;
 }
 
