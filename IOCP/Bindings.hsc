@@ -19,6 +19,8 @@ module IOCP.Bindings (
     CancelIoEx,
     loadCancelIoEx,
     runCancelIoEx,
+    IOStatus(..),
+    checkPendingIf_,
 
     -- * Types
     CompletionPort(..),
@@ -158,6 +160,31 @@ runCancelIoEx (CancelIoEx f) (Handle h) mol =
     f h (maybe nullPtr fromOverlapped mol)
   where
     fromOverlapped (Overlapped ptr) = ptr
+
+data IOStatus
+  = Pending
+  | Done
+  deriving (Eq, Show)
+
+-- | Wrap an action that either completes immediately ('Done') or will signal
+-- completion at a later time ('Pending').
+checkPendingIf_
+    :: (a -> Bool) -- ^ Predicate returning 'True' on \"failure\"
+    -> String
+    -> IO a
+    -> IO IOStatus
+checkPendingIf_ p loc act = do
+    a <- act
+    if p a
+      then do
+        err <- getLastError
+        if err == e_ERROR_IO_PENDING
+            then return Pending
+            else throwWinError loc err
+      else return Done
+
+------------------------------------------------------------------------
+-- Types
 
 newtype CompletionPort a = CompletionPort HANDLE
     deriving (Eq, Show, Storable)

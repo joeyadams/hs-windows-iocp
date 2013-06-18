@@ -116,10 +116,9 @@ fail0:
     return NULL;
 }
 
-HsBool iocp_winsock_connect(Winsock *winsock, HANDLE h, SOCKADDR *addr, int addrLen, OVERLAPPED *ol)
+BOOL iocp_winsock_connect(Winsock *winsock, HANDLE h, SOCKADDR *addr, int addrLen, OVERLAPPED *ol)
 {
-    BOOL b = winsock->ConnectEx((SOCKET) h, addr, addrLen, NULL, 0, NULL, ol);
-    return b ? HS_BOOL_TRUE : HS_BOOL_FALSE;
+    return winsock->ConnectEx((SOCKET) h, addr, addrLen, NULL, 0, NULL, ol);
 }
 
 BOOL iocp_winsock_recv(SOCKET sock, char *buf, u_long bufsize, OVERLAPPED *ol)

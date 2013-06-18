@@ -83,11 +83,11 @@ bind sock addr =
 
 foreign import ccall "iocp_winsock_connect"
     c_iocp_winsock_connect
-        :: Winsock -> Handle a -> Ptr SockAddr -> CInt -> Overlapped a -> IO Bool
+        :: Winsock -> Handle a -> Ptr SockAddr -> CInt -> Overlapped a -> IO BOOL
 
 -- | Uses @ConnectEx@, which requires the socket to be initially bound.
-connect :: Winsock -> Handle a -> SockAddr -> Overlapped a -> IO ()
+connect :: Winsock -> Handle a -> SockAddr -> Overlapped a -> IO IOStatus
 connect ws h addr ol =
-    failIf_ (== False) "connect" $
+    checkPendingIf_ (== 0) "connect" $
     withSockAddr addr $ \ptr len ->
     c_iocp_winsock_connect ws h ptr len ol
