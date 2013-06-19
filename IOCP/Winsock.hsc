@@ -7,6 +7,7 @@ module IOCP.Winsock (
     close,
     bind,
     connect,
+    send,
 
     -- * Types
     Winsock,
@@ -91,3 +92,11 @@ connect ws h addr ol =
     checkPendingIf_ (== 0) "connect" $
     withSockAddr addr $ \ptr len ->
     c_iocp_winsock_connect ws h ptr len ol
+
+foreign import ccall "iocp_winsock_send"
+    c_iocp_winsock_send :: Handle a -> Ptr CChar -> CULong -> Overlapped a -> IO CInt
+
+send :: Handle cv -> Ptr a -> Int -> Overlapped cv -> IO IOStatus
+send h ptr len ol =
+    checkPendingIf_ (/= 0) "send" $
+    c_iocp_winsock_send h (castPtr ptr) (fromIntegral len) ol

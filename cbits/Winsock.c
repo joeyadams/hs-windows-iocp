@@ -129,9 +129,41 @@ BOOL iocp_winsock_recv(SOCKET sock, char *buf, u_long bufsize, OVERLAPPED *ol)
     return (rc == 0 || WSAGetLastError() == ERROR_IO_PENDING);
 }
 
-BOOL iocp_winsock_send(SOCKET sock, char *buf, u_long bufsize, OVERLAPPED *ol)
+static void iocp_SecureZeroMemory(PVOID ptr, SIZE_T count)
 {
-    WSABUF wsabuf = {.len = bufsize, .buf = buf};
-    int rc = WSASend(sock, &wsabuf, 1, NULL, 0, ol, NULL);
-    return (rc == 0 || WSAGetLastError() == ERROR_IO_PENDING);
+    volatile char *vptr = (volatile char *) ptr;
+    while (count-- > 0)
+        *vptr++ = 0;
+}
+
+int iocp_winsock_send(HANDLE h, char *buf, unsigned long bufsize, OVERLAPPED *ol)
+{
+    WSABUF *wsabuf = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(*wsabuf));
+    if (wsabuf == NULL) {
+        SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+        return SOCKET_ERROR;
+    }
+
+    char *buf2 = malloc(bufsize);
+    if (buf2 == NULL) {
+        HeapFree(GetProcessHeap(), 0, wsabuf);
+        SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+        return SOCKET_ERROR;
+    }
+    memcpy(buf2, buf, bufsize);
+    buf = buf2;
+
+    wsabuf->len = bufsize;
+    wsabuf->buf = buf;
+    int rc = WSASend((SOCKET) h, wsabuf, 1, NULL, 0, ol, NULL);
+
+    // See if WSASend owns the buffer content itself or not.
+    memset(wsabuf->buf, 'x', bufsize);
+
+    // See if WSASend needs to own the WSABUF array itself or not.
+    iocp_SecureZeroMemory(wsabuf, sizeof(*wsabuf));
+    wsabuf->len = 5;
+    wsabuf->buf = "jelly";
+
+    return rc;
 }
