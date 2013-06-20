@@ -102,20 +102,13 @@ peekOverlapped :: Overlapped a -> IO a
 peekOverlapped ol =
     peekOverlappedStablePtr ol >>= deRefStablePtr
 
--- | Free an 'Overlapped'.  This must only be used if the 'Overlapped' will
--- never appear in a completion port (e.g. because I\/O could not be started).
--- Note that 'getQueuedCompletionStatus' will free the 'Overlapped'
--- automatically.
+-- | Free an 'Overlapped'.  This must be called exactly once for every
+-- 'Overlapped' that is created, and must not be called if the I\/O operation
+-- is still pending.
 freeOverlapped :: Overlapped a -> IO ()
 freeOverlapped ol@(Overlapped ptr) = do
     peekOverlappedStablePtr ol >>= freeStablePtr
     free ptr
-
-finishOverlapped :: Overlapped a -> IO a
-finishOverlapped ol = do
-    a <- peekOverlapped ol
-    freeOverlapped ol
-    return a
 
 -- | Dequeue a completion packet.
 --
@@ -125,7 +118,7 @@ finishOverlapped ol = do
 getQueuedCompletionStatus
     :: CompletionPort a
     -> DWORD  -- ^ Timeout, in milliseconds.  Use 'iNFINITE' to never time out.
-    -> IO (Maybe (Completion, a))
+    -> IO (Maybe (Completion, Overlapped a))
 getQueuedCompletionStatus cport timeout =
   with 0 $ \pNumBytes ->
   with 0 $ \pCompletionKey ->
@@ -134,19 +127,20 @@ getQueuedCompletionStatus cport timeout =
     err <- getLastError
     ol <- peek pOverlapped
     if b /= 0 then do
-        value <- finishOverlapped ol
+        -- I/O succeeded (GetQueuedCompletionStatus returned TRUE)
         numBytes <- peek pNumBytes
         let !c = Completion{ cNumBytes = numBytes, cError = 0 }
-        return $ Just (c, value)
+        return $ Just (c, ol)
     else if ol == Overlapped nullPtr then
+        -- GetQueuedCompletionStatus failed
         if err == #{const WAIT_TIMEOUT}
             then return Nothing
             else throwWinError "getQueuedCompletionStatus" err
     else do
-        value <- finishOverlapped ol
+        -- I/O failed
         numBytes <- peek pNumBytes
         let !c = Completion{ cNumBytes = numBytes, cError = err }
-        return $ Just (c, value)
+        return $ Just (c, ol)
 
 postQueuedCompletionStatus :: CompletionPort a -> Overlapped a -> IO ()
 postQueuedCompletionStatus = postQueuedCompletionStatusNB 0
