@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DoAndIfThenElse #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -32,7 +33,6 @@ module IOCP.Bindings (
 
 import IOCP.Windows
 
-import Control.Exception hiding (handle)
 import Foreign
 
 #include "iocp.h"
@@ -78,23 +78,33 @@ newOverlapped = newOverlappedWithOffset 0
 -- | Like 'newOverlapped', but specify a value for the Offset/OffsetHigh fields
 -- of the @OVERLAPPED@ structure.
 newOverlappedWithOffset :: Word64 -> a -> IO (Overlapped a)
-newOverlappedWithOffset offset ctx =
-    bracketOnError (newStablePtr ctx) freeStablePtr $ \ptr ->
-        failIf (== Overlapped nullPtr) "newOverlapped" $
-            c_iocp_new_overlapped offset ptr
+newOverlappedWithOffset offset ctx = do
+    let !ol = OVERLAPPED{ olInternal     = 0
+                        , olInternalHigh = 0
+                        , olOffset       = offset
+                        , olEvent        = nullPtr
+                        }
+    ptr  <- malloc
+    sptr <- newStablePtr ctx
+    poke ptr $! OverlappedRec ol sptr
+    return (Overlapped ptr)
 
 -- | Free an 'Overlapped'.  This must only be used if the 'Overlapped' will
 -- never appear in a completion port (e.g. because I\/O could not be started).
 -- Note that 'getQueuedCompletionStatus' will free the 'Overlapped'
 -- automatically.
 freeOverlapped :: Overlapped a -> IO ()
-freeOverlapped ol = c_iocp_finish_overlapped ol >>= freeStablePtr
+freeOverlapped (Overlapped ptr) = do
+    OverlappedRec _ sptr <- peek ptr
+    freeStablePtr sptr
+    free ptr
 
 finishOverlapped :: Overlapped a -> IO a
-finishOverlapped ol = do
-    sptr <- c_iocp_finish_overlapped ol
+finishOverlapped (Overlapped ptr) = do
+    OverlappedRec _ sptr <- peek ptr
     a <- deRefStablePtr sptr
     freeStablePtr sptr
+    free ptr
     return a
 
 -- | Dequeue a completion packet.
@@ -246,12 +256,6 @@ foreign import WINDOWS_CCONV unsafe "windows.h CreateIoCompletionPort"
 
 foreign import WINDOWS_CCONV safe "windows.h CloseHandle"
     c_CloseHandle :: HANDLE -> IO BOOL
-
-foreign import ccall unsafe "iocp_new_overlapped"
-    c_iocp_new_overlapped :: Word64 -> StablePtr a -> IO (Overlapped a)
-
-foreign import ccall unsafe "iocp_finish_overlapped"
-    c_iocp_finish_overlapped :: Overlapped a -> IO (StablePtr a)
 
 -- TODO: even though this blocks, we can probably mark it unsafe because we
 -- call it from a bound thread.
