@@ -10,6 +10,8 @@ module IOCP.Bindings (
     closeHandle,
     newOverlapped,
     newOverlappedWithOffset,
+    castOverlapped,
+    peekOverlapped,
     freeOverlapped,
     getQueuedCompletionStatus,
     iNFINITE,
@@ -90,22 +92,29 @@ newOverlappedWithOffset offset ctx = do
     poke ptr $! OverlappedRec ol sptr
     return (Overlapped ptr)
 
+-- | Upcast an 'Overlapped' to pass it to system calls that take an
+-- 'LPOVERLAPPED'.
+castOverlapped :: Overlapped a -> LPOVERLAPPED
+castOverlapped (Overlapped ptr) = castPtr ptr
+
+-- | Retrieve the context value passed to 'newOverlapped'.
+peekOverlapped :: Overlapped a -> IO a
+peekOverlapped ol =
+    peekOverlappedStablePtr ol >>= deRefStablePtr
+
 -- | Free an 'Overlapped'.  This must only be used if the 'Overlapped' will
 -- never appear in a completion port (e.g. because I\/O could not be started).
 -- Note that 'getQueuedCompletionStatus' will free the 'Overlapped'
 -- automatically.
 freeOverlapped :: Overlapped a -> IO ()
-freeOverlapped (Overlapped ptr) = do
-    OverlappedRec _ sptr <- peek ptr
-    freeStablePtr sptr
+freeOverlapped ol@(Overlapped ptr) = do
+    peekOverlappedStablePtr ol >>= freeStablePtr
     free ptr
 
 finishOverlapped :: Overlapped a -> IO a
-finishOverlapped (Overlapped ptr) = do
-    OverlappedRec _ sptr <- peek ptr
-    a <- deRefStablePtr sptr
-    freeStablePtr sptr
-    free ptr
+finishOverlapped ol = do
+    a <- peekOverlapped ol
+    freeOverlapped ol
     return a
 
 -- | Dequeue a completion packet.
@@ -168,7 +177,7 @@ loadCancelIoEx =
 runCancelIoEx :: CancelIoEx -> Handle a -> Maybe (Overlapped a) -> IO ()
 runCancelIoEx (CancelIoEx f) (Handle h) mol =
     failIf_ (== 0) "CancelIoEx" $
-    f h (maybe nullPtr fromOverlapped mol)
+    f h (maybe nullPtr castOverlapped mol)
 
 data IOStatus
   = Pending
@@ -225,8 +234,8 @@ instance Show (OverlappedRec a) where
         showsPrec 11 ol . showChar ' ' .
         showsPrec 11 (castStablePtrToPtr sptr)
 
-fromOverlapped :: Overlapped a -> LPOVERLAPPED
-fromOverlapped (Overlapped ptr) = castPtr ptr
+peekOverlappedStablePtr :: Overlapped a -> IO (StablePtr a)
+peekOverlappedStablePtr (Overlapped p) = (#peek OverlappedRec, sptr) p
 
 data Completion = Completion
     { cNumBytes :: !DWORD   -- ^ Number of bytes transferred during I/O operation
