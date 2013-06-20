@@ -33,6 +33,7 @@ module IOCP.Bindings (
 
 import IOCP.Windows
 
+import Control.Applicative ((<$>))
 import Foreign
 
 #include "iocp.h"
@@ -158,14 +159,9 @@ cancelIo h =
     failIf_ (== 0) "cancelIo" $
     c_CancelIo h
 
-newtype CancelIoEx = CancelIoEx C_CancelIoEx
-
 loadCancelIoEx :: IO (Maybe CancelIoEx)
-loadCancelIoEx = do
-    fptr <- c_iocp_load_CancelIoEx
-    if fptr == nullFunPtr
-        then return Nothing
-        else return $! Just $! CancelIoEx (mkCancelIoEx fptr)
+loadCancelIoEx =
+    fmap mkCancelIoEx <$> getProcAddress kernel32 "CancelIoEx"
 
 runCancelIoEx :: CancelIoEx -> Handle a -> Maybe (Overlapped a) -> IO ()
 runCancelIoEx (CancelIoEx f) (Handle h) mol =
@@ -279,10 +275,7 @@ foreign import WINDOWS_CCONV unsafe "windows.h PostQueuedCompletionStatus"
 foreign import WINDOWS_CCONV unsafe "windows.h CancelIo"
     c_CancelIo :: Handle a -> IO BOOL
 
-type C_CancelIoEx = HANDLE -> LPOVERLAPPED -> IO BOOL
-
-foreign import ccall unsafe "iocp_load_CancelIoEx"
-    c_iocp_load_CancelIoEx :: IO (FunPtr C_CancelIoEx)
+newtype CancelIoEx = CancelIoEx (HANDLE -> LPOVERLAPPED -> IO BOOL)
 
 foreign import WINDOWS_CCONV "dynamic"
-    mkCancelIoEx :: FunPtr C_CancelIoEx -> C_CancelIoEx
+    mkCancelIoEx :: FunPtr CancelIoEx -> CancelIoEx
