@@ -68,6 +68,7 @@ instance Show ErrCode where
     show (ErrCode n) = f n where
         -- Add error codes here as needed.
         f #{const ERROR_SUCCESS}            = "ERROR_SUCCESS"             -- 0
+        f #{const ERROR_INVALID_PARAMETER}  = "ERROR_INVALID_PARAMETER"   -- 87
         f #{const ERROR_SEM_TIMEOUT}        = "ERROR_SEM_TIMEOUT"         -- 121
         f #{const WAIT_TIMEOUT}             = "WAIT_TIMEOUT"              -- 258
         f #{const ERROR_OPERATION_ABORTED}  = "ERROR_OPERATION_ABORTED"   -- 995
@@ -78,7 +79,11 @@ instance Show ErrCode where
         f #{const WSAEINTR}                 = "WSAEINTR"                  -- 10004
         f #{const WSAEFAULT}                = "WSAEFAULT"                 -- 10014
         f #{const WSAEINVAL}                = "WSAEINVAL"                 -- 10022
+        f #{const WSAENOTSOCK}              = "WSAENOTSOCK"               -- 10038
         f #{const WSAEAFNOSUPPORT}          = "WSAEAFNOSUPPORT"           -- 10047
+        f #{const WSAEADDRINUSE}            = "WSAEADDRINUSE"             -- 10048
+        f #{const WSAEADDRNOTAVAIL}         = "WSAEADDRNOTAVAIL"          -- 10049
+        f #{const WSAECONNRESET}            = "WSAECONNRESET"             -- 10054
         f #{const WSAEISCONN}               = "WSAEISCONN"                -- 10056
         f #{const WSAENOTCONN}              = "WSAENOTCONN"               -- 10057
         f #{const WSAETIMEDOUT}             = "WSAETIMEDOUT"              -- 10060
