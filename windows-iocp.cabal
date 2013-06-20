@@ -20,6 +20,7 @@ source-repository head
 library
     exposed-modules:
         IOCP.Bindings
+        IOCP.Utils
         IOCP.Windows
         IOCP.Winsock
         IOCP.Winsock.Types
