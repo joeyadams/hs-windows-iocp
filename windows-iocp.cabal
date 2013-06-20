@@ -13,6 +13,8 @@ category: System
 build-type: Simple
 cabal-version: >= 1.14
 
+extra-source-files: include/iocp.h
+
 source-repository head
     type:       git
     location:   https://github.com/joeyadams/hs-windows-iocp
@@ -32,6 +34,9 @@ library
     c-sources:
         cbits/iocp.c
         cbits/Winsock.c
+
+    include-dirs: include
+    includes: iocp.h
 
     build-depends: base >= 4.6 && < 5
 

@@ -26,6 +26,7 @@ module IOCP.Bindings (
     CompletionPort(..),
     Handle(..),
     Overlapped(..),
+    OverlappedRec(..),
     Completion(..),
 ) where
 
@@ -33,6 +34,8 @@ import IOCP.Windows
 
 import Control.Exception hiding (handle)
 import Foreign
+
+#include "iocp.h"
 
 ##ifdef mingw32_HOST_OS
 ## if defined(i386_HOST_ARCH)
@@ -44,7 +47,7 @@ import Foreign
 ## endif
 ##endif
 
-#include <windows.h>
+#let alignment t = "%lu", (unsigned long)offsetof(struct {char x__; t (y__); }, y__)
 
 newCompletionPort :: IO (CompletionPort a)
 newCompletionPort =
@@ -158,8 +161,6 @@ runCancelIoEx :: CancelIoEx -> Handle a -> Maybe (Overlapped a) -> IO ()
 runCancelIoEx (CancelIoEx f) (Handle h) mol =
     failIf_ (== 0) "CancelIoEx" $
     f h (maybe nullPtr fromOverlapped mol)
-  where
-    fromOverlapped (Overlapped ptr) = ptr
 
 data IOStatus
   = Pending
@@ -192,8 +193,32 @@ newtype CompletionPort a = CompletionPort HANDLE
 newtype Handle a = Handle HANDLE
     deriving (Eq, Show, Storable)
 
-newtype Overlapped a = Overlapped (Ptr ())
+newtype Overlapped a = Overlapped (Ptr (OverlappedRec a))
     deriving (Eq, Show, Storable)
+
+data OverlappedRec a = OverlappedRec !OVERLAPPED !(StablePtr a)
+    deriving Eq
+
+instance Storable (OverlappedRec a) where
+    sizeOf    _ = #{size      OverlappedRec}
+    alignment _ = #{alignment OverlappedRec}
+    peek p = do
+        ol   <- (#peek OverlappedRec, ol)   p
+        sptr <- (#peek OverlappedRec, sptr) p
+        return $! OverlappedRec ol sptr
+    poke p (OverlappedRec ol sptr) = do
+        (#poke OverlappedRec, ol)   p ol
+        (#poke OverlappedRec, sptr) p sptr
+
+instance Show (OverlappedRec a) where
+    showsPrec p (OverlappedRec ol sptr) =
+      showParen (p > 10) $
+        showString "OverlappedRec " .
+        showsPrec 11 ol . showChar ' ' .
+        showsPrec 11 (castStablePtrToPtr sptr)
+
+fromOverlapped :: Overlapped a -> LPOVERLAPPED
+fromOverlapped (Overlapped ptr) = castPtr ptr
 
 data Completion a = Completion
     { cValue    :: a        -- ^ Value passed to 'newOverlapped'
@@ -250,7 +275,7 @@ foreign import WINDOWS_CCONV unsafe "windows.h PostQueuedCompletionStatus"
 foreign import WINDOWS_CCONV unsafe "windows.h CancelIo"
     c_CancelIo :: Handle a -> IO BOOL
 
-type C_CancelIoEx = HANDLE -> Ptr () -> IO BOOL
+type C_CancelIoEx = HANDLE -> LPOVERLAPPED -> IO BOOL
 
 foreign import ccall unsafe "iocp_load_CancelIoEx"
     c_iocp_load_CancelIoEx :: IO (FunPtr C_CancelIoEx)
