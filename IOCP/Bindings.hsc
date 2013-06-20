@@ -159,19 +159,52 @@ postValue cport a = newOverlapped a >>= postQueuedCompletionStatus cport
 
 -- | Cancel all pending overlapped I\/O issued by the current OS thread on the
 -- given handle.
+--
+-- Warning: prior to Windows Vista, when an OS thread exits, all of its pending
+-- I\/O is canceled automatically.  On Vista and later, this cancellation does
+-- not happen if the 'Handle' has been associated with a completion port.
+--
+-- For earlier systems, we can use this workaround to support targeted
+-- cancellation:
+--
+--  * Initiate the I\/O from a bound thread that doesn't go away (usually a
+--    thread processing completions).  We'll call this the \"proxy thread\".
+--
+--  * To cancel the I\/O, call 'cancelIo' from the same proxy thread that
+--    initiated it.
+--
+--  * For concurrent operations on the same 'Handle', use a separate OS thread
+--    for each operation.  Multiple 'Handle's may share a proxy thread,
+--    but operations on the same handle may not.
 cancelIo :: Handle a -> IO ()
 cancelIo h =
     failIf_ (== 0) "cancelIo" $
     c_CancelIo h
 
+-- | Retrieve the @CancelIoEx@ function, if it is available on this system.
+-- @CancelIoEx@ was introduced in Windows Vista.
 loadCancelIoEx :: IO (Maybe CancelIoEx)
 loadCancelIoEx =
     fmap mkCancelIoEx <$> getProcAddress kernel32 "CancelIoEx"
 
-runCancelIoEx :: CancelIoEx -> Handle a -> Maybe (Overlapped a) -> IO ()
-runCancelIoEx (CancelIoEx f) (Handle h) mol =
-    failIf_ (== 0) "CancelIoEx" $
-    f h (maybe nullPtr castOverlapped mol)
+-- | Cancel pending I\/O on a given handle.  Return 'False' if nothing was
+-- found to be canceled (e.g. because the I\/O already completed).
+runCancelIoEx
+    :: CancelIoEx
+    -> Handle a
+    -> Maybe (Overlapped a)
+       -- ^ Identifies the operation to cancel.  If 'Nothing', cancel all
+       --   pending I\/O on this handle, regardless of what threads started it.
+    -> IO Bool
+runCancelIoEx (CancelIoEx f) (Handle h) mol = do
+    b <- f h (maybe nullPtr castOverlapped mol)
+    if b /= 0
+      then return True
+      else do
+        err <- getLastError
+        if err == e_ERROR_NOT_FOUND
+          then return False
+          else throwWinError "CancelIoEx" err
 
 data IOStatus
   = Pending
