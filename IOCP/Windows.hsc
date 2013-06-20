@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE DoAndIfThenElse #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
@@ -19,8 +20,15 @@ module IOCP.Windows (
     iNFINITE,
     iNVALID_HANDLE_VALUE,
 
+    -- * Loading functions dynamically
+    HMODULE(..),
+    getModuleHandle,
+    getProcAddress,
+    kernel32,
+
     -- * System errors
     ErrCode(..),
+    e_ERROR_PROC_NOT_FOUND,
     e_WAIT_TIMEOUT,
     e_ERROR_IO_PENDING,
     e_WSANOTINITIALISED,
@@ -44,6 +52,7 @@ import Data.String (IsString(..))
 import Data.Typeable (Typeable)
 import Foreign
 import Foreign.C
+import qualified System.IO.Unsafe as U
 
 #include <windows.h>
 
@@ -62,7 +71,8 @@ import Foreign.C
 type BOOL       = #type BOOL
 type DWORD      = #type DWORD
 type HANDLE     = Ptr ()
-type LPWSTR     = Ptr CWchar
+type LPSTR      = CString
+type LPWSTR     = CWString
 type ULONG_PTR  = #type ULONG_PTR
 
 data GUID = GUID !Word32 !Word32 !Word32 !Word32
@@ -152,6 +162,41 @@ instance Storable OVERLAPPED where
 
 type LPOVERLAPPED = Ptr OVERLAPPED
 
+newtype HMODULE = HMODULE HANDLE
+  deriving (Eq, Show, Typeable)
+
+foreign import WINDOWS_CCONV unsafe "windows.h GetModuleHandleW"
+    c_GetModuleHandleW :: LPWSTR -> IO HMODULE
+
+getModuleHandle :: String -> IO HMODULE
+getModuleHandle name =
+    failIf (== HMODULE nullPtr) "getModuleHandle" $
+    withCWString name c_GetModuleHandleW
+
+foreign import WINDOWS_CCONV unsafe "windows.h GetProcAddress"
+    c_GetProcAddress :: HMODULE -> LPSTR -> IO (FunPtr a)
+
+-- | Retrieve an exported definition from a DLL.  Return 'Nothing' if the
+-- definition is not available.
+--
+-- For example, @'getProcAddress' 'kernel32' \"GetTickCount64\"@ returns a
+-- 'Just' on Windows Vista and later, or 'Nothing' on earlier systems.
+getProcAddress :: HMODULE -> String -> IO (Maybe (FunPtr a))
+getProcAddress hModule procName = do
+    ptr <- withCString procName $ c_GetProcAddress hModule
+    if ptr == nullFunPtr
+      then do
+        err <- getLastError
+        if err == e_ERROR_PROC_NOT_FOUND
+          then return Nothing
+          else throwWinError "getProcAddress" err
+      else return $ Just ptr
+
+-- | The module handle for @\"kernel32\.dll\"@
+kernel32 :: HMODULE
+kernel32 = U.unsafePerformIO $ getModuleHandle "kernel32.dll"
+{-# NOINLINE kernel32 #-}
+
 iNFINITE :: DWORD
 iNFINITE = #const INFINITE
 
@@ -167,6 +212,8 @@ instance Show ErrCode where
         f #{const ERROR_SUCCESS}            = "ERROR_SUCCESS"             -- 0
         f #{const ERROR_INVALID_PARAMETER}  = "ERROR_INVALID_PARAMETER"   -- 87
         f #{const ERROR_SEM_TIMEOUT}        = "ERROR_SEM_TIMEOUT"         -- 121
+        f #{const ERROR_MOD_NOT_FOUND}      = "ERROR_MOD_NOT_FOUND"       -- 126
+        f #{const ERROR_PROC_NOT_FOUND}     = "ERROR_PROC_NOT_FOUND"      -- 127
         f #{const WAIT_TIMEOUT}             = "WAIT_TIMEOUT"              -- 258
         f #{const ERROR_OPERATION_ABORTED}  = "ERROR_OPERATION_ABORTED"   -- 995
         f #{const ERROR_IO_PENDING}         = "ERROR_IO_PENDING"          -- 997
@@ -186,6 +233,9 @@ instance Show ErrCode where
         f #{const WSAETIMEDOUT}             = "WSAETIMEDOUT"              -- 10060
         f #{const WSANOTINITIALISED}        = "WSANOTINITIALISED"         -- 10093
         f _ = "error code " ++ show n
+
+e_ERROR_PROC_NOT_FOUND :: ErrCode
+e_ERROR_PROC_NOT_FOUND = ErrCode #const ERROR_PROC_NOT_FOUND
 
 e_WAIT_TIMEOUT :: ErrCode
 e_WAIT_TIMEOUT = ErrCode #const WAIT_TIMEOUT
