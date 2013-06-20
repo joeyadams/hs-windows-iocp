@@ -12,6 +12,8 @@ module IOCP.Windows (
     LPWSTR,
     ULONG_PTR,
     GUID(..),
+    OVERLAPPED(..),
+    LPOVERLAPPED,
 
     -- * Constants
     iNFINITE,
@@ -121,6 +123,34 @@ instance Storable GUID where
         (#poke GUID, Data3) p (b .>>. 0   :: Word16)
         pokeByteOff p ((#offset GUID, Data4) + 0) (Word32be c)
         pokeByteOff p ((#offset GUID, Data4) + 4) (Word32be d)
+
+data OVERLAPPED = OVERLAPPED
+    { olInternal      :: !ULONG_PTR
+    , olInternalHigh  :: !ULONG_PTR
+    , olOffset        :: !Word64
+    , olEvent         :: !HANDLE
+    }
+  deriving (Eq, Show, Typeable)
+
+instance Storable OVERLAPPED where
+    sizeOf    _ = #{size      OVERLAPPED}
+    alignment _ = #{alignment OVERLAPPED}
+    peek p = do
+        olInternal     <- (#peek OVERLAPPED, Internal)     p
+        olInternalHigh <- (#peek OVERLAPPED, InternalHigh) p
+        offsetLo       <- (#peek OVERLAPPED, Offset)       p :: IO DWORD
+        offsetHi       <- (#peek OVERLAPPED, OffsetHigh)   p :: IO DWORD
+        olEvent        <- (#peek OVERLAPPED, hEvent)       p
+        let olOffset = (offsetHi .<<. 32) .|. (offsetLo .<<. 0)
+        return $! OVERLAPPED{..}
+    poke p OVERLAPPED{..} = do
+        (#poke OVERLAPPED, Internal)     p olInternal
+        (#poke OVERLAPPED, InternalHigh) p olInternalHigh
+        (#poke OVERLAPPED, Offset)       p (olOffset .>>.  0 :: DWORD)
+        (#poke OVERLAPPED, OffsetHigh)   p (olOffset .>>. 32 :: DWORD)
+        (#poke OVERLAPPED, hEvent)       p olEvent
+
+type LPOVERLAPPED = Ptr OVERLAPPED
 
 iNFINITE :: DWORD
 iNFINITE = #const INFINITE

@@ -36,7 +36,17 @@ testGUID = do
 
     return ()
 
+testMisc :: IO ()
+testMisc = do
+    True <- return $ sizeOf (undefined :: ULONG_PTR)
+                  == sizeOf (undefined :: WordPtr)
+    let oSize   = sizeOf    (undefined :: OVERLAPPED)
+        spAlign = alignment (undefined :: StablePtr a)
+    True <- return $ oSize `mod` spAlign == 0
+    return ()
+
 main :: IO ()
 main = do
     testGUID
+    testMisc
     putStrLn "All tests passed!"
