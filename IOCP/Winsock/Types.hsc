@@ -47,13 +47,14 @@ module IOCP.Winsock.Types (
     unpackProtocol,
 ) where
 
+import IOCP.Utils
+
 import Control.Applicative
-import Data.Bits
 import Data.List
 import Data.Typeable (Typeable)
 import Data.Word
 import Foreign
-import Foreign.C.Types (CInt(..), CSize(..))
+import Foreign.C.Types (CInt(..))
 import Numeric (showInt, showHex)
 
 #include <winsock2.h>
@@ -183,8 +184,8 @@ instance Show HostAddress where
 instance Storable HostAddress where
     sizeOf    _ = #{size      struct in_addr}
     alignment _ = #{alignment struct in_addr}
-    peek ptr = HostAddress <$> peek32be (castPtr ptr)
-    poke ptr (HostAddress w) = poke32be (castPtr ptr) w
+    peek ptr = HostAddress . fromWord32be <$> peek (castPtr ptr)
+    poke ptr (HostAddress w) = poke (castPtr ptr) (Word32be w)
 
 data HostAddress6 = HostAddress6 !Word32 !Word32 !Word32 !Word32
     deriving (Eq, Typeable)
@@ -225,17 +226,17 @@ instance Storable HostAddress6 where
     alignment _ = #{alignment struct in6_addr}
 
     peek ptr = do
-        a <- peek32be (ptr `plusPtr`  0)
-        b <- peek32be (ptr `plusPtr`  4)
-        c <- peek32be (ptr `plusPtr`  8)
-        d <- peek32be (ptr `plusPtr` 12)
+        Word32be a <- peekByteOff ptr  0
+        Word32be b <- peekByteOff ptr  4
+        Word32be c <- peekByteOff ptr  8
+        Word32be d <- peekByteOff ptr 12
         return $! HostAddress6 a b c d
 
     poke ptr (HostAddress6 a b c d) = do
-        poke32be (ptr `plusPtr`  0) a
-        poke32be (ptr `plusPtr`  4) b
-        poke32be (ptr `plusPtr`  8) c
-        poke32be (ptr `plusPtr` 12) d
+        pokeByteOff ptr  0 (Word32be a)
+        pokeByteOff ptr  4 (Word32be b)
+        pokeByteOff ptr  8 (Word32be c)
+        pokeByteOff ptr 12 (Word32be d)
 
 -- |
 -- NOTE: uses host byte order for the 'Word16', unlike the network package.
@@ -249,8 +250,8 @@ instance Show PortNumber where
 instance Storable PortNumber where
     sizeOf    _ = #{size      unsigned short}
     alignment _ = #{alignment unsigned short}
-    peek ptr = PortNumber <$> peek16be (castPtr ptr)
-    poke ptr (PortNumber w) = poke16be (castPtr ptr) w
+    peek ptr = PortNumber . fromWord16be <$> peek (castPtr ptr)
+    poke ptr (PortNumber w) = poke (castPtr ptr) (Word16be w)
 
 aNY_PORT :: PortNumber
 aNY_PORT = 0
@@ -330,53 +331,3 @@ unpackProtocol (CProtocol n) = case n of
     (#const IPPROTO_TCP) -> Just IPPROTO_TCP
     (#const IPPROTO_UDP) -> Just IPPROTO_UDP
     _ -> Nothing
-
-------------------------------------------------------------------------
--- Utilities
-
--- | Read a 'Word16' stored in network byte order (big endian).
-peek16be :: Ptr Word8 -> IO Word16
-peek16be ptr = do
-    a0 <- peekElemOff ptr 0
-    a1 <- peekElemOff ptr 1
-    return $! (a0 .<<. 8) .|. (a1 .<<. 0)
-
--- | Write a 'Word16' in network byte order (big endian).
-poke16be :: Ptr Word8 -> Word16 -> IO ()
-poke16be ptr a = do
-    pokeElemOff ptr 0 (a .>>. 8)
-    pokeElemOff ptr 1 (a .>>. 0)
-
--- | Read a 'Word32' stored in network byte order (big endian).
-peek32be :: Ptr Word8 -> IO Word32
-peek32be ptr = do
-    a0 <- peekElemOff ptr 0
-    a1 <- peekElemOff ptr 1
-    a2 <- peekElemOff ptr 2
-    a3 <- peekElemOff ptr 3
-    return $! (a0 .<<. 24) .|. (a1 .<<. 16) .|. (a2 .<<. 8) .|. (a3 .<<. 0)
-
--- | Write a 'Word32' in network byte order (big endian).
-poke32be :: Ptr Word8 -> Word32 -> IO ()
-poke32be ptr a = do
-    pokeElemOff ptr 0 (a .>>. 24)
-    pokeElemOff ptr 1 (a .>>. 16)
-    pokeElemOff ptr 2 (a .>>.  8)
-    pokeElemOff ptr 3 (a .>>.  0)
-
--- | Extend and shift left.  Used to construct big words from little ones.
-(.<<.) :: (Integral a, Num b, Bits b) => a -> Int -> b
-x .<<. i = fromIntegral x `shiftL` i
-
--- | Shift right and truncate.  Used to extract little words from big ones.
-(.>>.) :: (Integral a, Bits a, Num b) => a -> Int -> b
-x .>>. i = fromIntegral (x `shiftR` i)
-
-delimit :: Char -> [ShowS] -> ShowS
-delimit delim = foldr (.) id . intersperse (showChar delim)
-
-foreign import ccall unsafe "string.h memset"
-    memset :: Ptr a -> CInt -> CSize -> IO ()
-
-zeroMemory :: Ptr a -> CSize -> IO ()
-zeroMemory dest nbytes = memset dest 0 nbytes
