@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
@@ -10,6 +11,7 @@ module IOCP.Windows (
     HANDLE,
     LPWSTR,
     ULONG_PTR,
+    GUID(..),
 
     -- * Constants
     iNFINITE,
@@ -31,11 +33,17 @@ module IOCP.Windows (
     failIf_,
 ) where
 
+import IOCP.Utils
+
 import Control.Exception
+import Data.Bits
 import Data.Char (isSpace)
+import Data.String (IsString(..))
 import Data.Typeable (Typeable)
 import Foreign
 import Foreign.C
+
+#include <windows.h>
 
 ##ifdef mingw32_HOST_OS
 ## if defined(i386_HOST_ARCH)
@@ -47,13 +55,72 @@ import Foreign.C
 ## endif
 ##endif
 
-#include <windows.h>
+#let alignment t = "%lu", (unsigned long)offsetof(struct {char x__; t (y__); }, y__)
 
 type BOOL       = #type BOOL
 type DWORD      = #type DWORD
 type HANDLE     = Ptr ()
 type LPWSTR     = Ptr CWchar
 type ULONG_PTR  = #type ULONG_PTR
+
+data GUID = GUID !Word32 !Word32 !Word32 !Word32
+  deriving (Eq, Ord, Typeable)
+
+-- | @{XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}@, where X is an uppercase hex digit
+instance Show GUID where
+    showsPrec _p (GUID a b c d)
+      = showChar '{'
+      . showHex32 a           . showChar '-'
+      . showHex16 (b .>>. 16) . showChar '-'
+      . showHex16 (b .>>. 0)  . showChar '-'
+      . showHex16 (c .>>. 16) . showChar '-'
+      . showHex16 (c .>>. 0) . showHex32 d
+      . showChar '}'
+
+-- | Same format as 'Show', but lowercase hex digits are allowed,
+-- and surrounding braces are optional.
+instance Read GUID where
+    readsPrec _p ('{' : s0) = do
+        (guid, '}' : s1) <- readGUID s0
+        [(guid, s1)]
+    readsPrec _p s0 = readGUID s0
+
+readGUID :: ReadS GUID
+readGUID s0 = do
+    (a , '-':s1) <- readHex32 s0
+    (b0, '-':s2) <- readHex16 s1
+    (b1, '-':s3) <- readHex16 s2
+    (c0, '-':s4) <- readHex16 s3
+    (c1,     s5) <- readHex16 s4
+    (d ,     s6) <- readHex32 s5
+    let !b = (b0 .<<. 16) .|. (b1 .<<. 0)
+        !c = (c0 .<<. 16) .|. (c1 .<<. 0)
+        !guid = GUID a b c d
+    [(guid, s6)]
+
+instance IsString GUID where
+    fromString s =
+      case reads s of
+          [(guid,"")] -> guid
+          _           -> error $ "invalid GUID literal " ++ show s
+
+instance Storable GUID where
+    sizeOf    _ = #{size      GUID}
+    alignment _ = #{alignment GUID}
+    peek p = do
+        a  <- (#peek GUID, Data1) p :: IO Word32
+        b0 <- (#peek GUID, Data2) p :: IO Word16
+        b1 <- (#peek GUID, Data3) p :: IO Word16
+        c  <- peekByteOff p ((#offset GUID, Data4) + 0) :: IO Word32be
+        d  <- peekByteOff p ((#offset GUID, Data4) + 4) :: IO Word32be
+        return $! GUID a ((b0 .<<. 16) .|. (b1 .<<. 0))
+                       (fromWord32be c) (fromWord32be d)
+    poke p (GUID a b c d) = do
+        (#poke GUID, Data1) p (a          :: Word32)
+        (#poke GUID, Data2) p (b .>>. 16  :: Word16)
+        (#poke GUID, Data3) p (b .>>. 0   :: Word16)
+        pokeByteOff p ((#offset GUID, Data4) + 0) (Word32be c)
+        pokeByteOff p ((#offset GUID, Data4) + 4) (Word32be d)
 
 iNFINITE :: DWORD
 iNFINITE = #const INFINITE
