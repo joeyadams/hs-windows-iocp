@@ -116,7 +116,7 @@ finishOverlapped (Overlapped ptr) = do
 getQueuedCompletionStatus
     :: CompletionPort a
     -> DWORD  -- ^ Timeout, in milliseconds.  Use 'iNFINITE' to never time out.
-    -> IO (Maybe (Completion a))
+    -> IO (Maybe (Completion, a))
 getQueuedCompletionStatus cport timeout =
   with 0 $ \pNumBytes ->
   with 0 $ \pCompletionKey ->
@@ -127,7 +127,8 @@ getQueuedCompletionStatus cport timeout =
     if b /= 0 then do
         value <- finishOverlapped ol
         numBytes <- peek pNumBytes
-        return $! Just $! Completion{ cValue = value, cNumBytes = numBytes, cError = 0 }
+        let !c = Completion{ cNumBytes = numBytes, cError = 0 }
+        return $ Just (c, value)
     else if ol == Overlapped nullPtr then
         if err == #{const WAIT_TIMEOUT}
             then return Nothing
@@ -135,7 +136,8 @@ getQueuedCompletionStatus cport timeout =
     else do
         value <- finishOverlapped ol
         numBytes <- peek pNumBytes
-        return $! Just $! Completion{ cValue = value, cNumBytes = numBytes, cError = err }
+        let !c = Completion{ cNumBytes = numBytes, cError = err }
+        return $ Just (c, value)
 
 postQueuedCompletionStatus :: CompletionPort a -> Overlapped a -> IO ()
 postQueuedCompletionStatus = postQueuedCompletionStatusNB 0
@@ -226,9 +228,8 @@ instance Show (OverlappedRec a) where
 fromOverlapped :: Overlapped a -> LPOVERLAPPED
 fromOverlapped (Overlapped ptr) = castPtr ptr
 
-data Completion a = Completion
-    { cValue    :: a        -- ^ Value passed to 'newOverlapped'
-    , cNumBytes :: !DWORD   -- ^ Number of bytes transferred during I/O operation
+data Completion = Completion
+    { cNumBytes :: !DWORD   -- ^ Number of bytes transferred during I/O operation
     , cError    :: !ErrCode -- ^ Zero if the I/O was successful
     }
     deriving Show
