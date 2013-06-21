@@ -19,6 +19,7 @@ module IOCP.Utils (
 
     -- * Miscellaneous
     delimit,
+    withPtrLen,
     zeroMemory,
 ) where
 
@@ -31,6 +32,7 @@ import Data.List (intersperse)
 import Data.Word
 import Data.Typeable (Typeable)
 import Foreign.C.Types
+import Foreign.Marshal.Alloc
 import Foreign.Ptr
 import Foreign.Storable
 import Text.Printf (PrintfArg)
@@ -115,13 +117,6 @@ instance Storable Word32be where
     peek ptr = Word32be <$> peek32be (castPtr ptr)
     poke ptr (Word32be n) = poke32be (castPtr ptr) n
 
-foreign import ccall unsafe "string.h memset"
-    memset :: Ptr a -> CInt -> CSize -> IO ()
-
--- | Set the bytes in the given memory range to zeros (using @memset@).
-zeroMemory :: Ptr a -> CSize -> IO ()
-zeroMemory dest nbytes = memset dest 0 nbytes
-
 -- | Show a 2-digit hex number, using capital letters.
 showHex8 :: Word8 -> ShowS
 showHex8 w = f (w `shiftR` 4) . f (w .&. 15)
@@ -175,3 +170,18 @@ readHex32 s0 = do
 -- | Separate a list of 'ShowS' strings with a delimiter character.
 delimit :: Char -> [ShowS] -> ShowS
 delimit delim = foldr (.) id . intersperse (showChar delim)
+
+-- | Like 'with', but also provide the size of the value (in bytes).
+withPtrLen :: Storable a => a -> (Ptr a -> Int -> IO b) -> IO b
+withPtrLen val f =
+  alloca $ \ptr -> do
+    poke ptr val
+    f ptr (sizeOf val)
+{-# INLINE withPtrLen #-}
+
+foreign import ccall unsafe "string.h memset"
+    memset :: Ptr a -> CInt -> CSize -> IO ()
+
+-- | Set the bytes in the given memory range to zeros (using @memset@).
+zeroMemory :: Ptr a -> CSize -> IO ()
+zeroMemory dest nbytes = memset dest 0 nbytes
