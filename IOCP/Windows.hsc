@@ -11,7 +11,9 @@ module IOCP.Windows (
     DWORD,
     HANDLE,
     LPDWORD,
+    LPINT,
     LPVOID,
+    PVOID,
     LPSTR,
     LPWSTR,
     ULONG_PTR,
@@ -80,7 +82,9 @@ type BOOL       = #type BOOL
 type DWORD      = #type DWORD
 type HANDLE     = Ptr ()
 type LPDWORD    = Ptr DWORD
+type LPINT      = Ptr CInt
 type LPVOID     = Ptr ()
+type PVOID      = Ptr ()
 type LPSTR      = CString
 type LPWSTR     = CWString
 type ULONG_PTR  = #type ULONG_PTR
