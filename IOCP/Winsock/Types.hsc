@@ -3,7 +3,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 module IOCP.Winsock.Types (
-    Socket(..),
+    SOCKET(..),
     iNVALID_SOCKET,
 
     -- * Socket addresses
@@ -62,11 +62,11 @@ import Numeric (showInt, showHex)
 
 #let alignment t = "%lu", (unsigned long)offsetof(struct {char x__; t (y__); }, y__)
 
-newtype Socket = Socket (#type SOCKET)
+newtype SOCKET = SOCKET (#type SOCKET)
   deriving (Eq, Ord, Show, Typeable)
 
-iNVALID_SOCKET :: Socket
-iNVALID_SOCKET = Socket #const INVALID_SOCKET
+iNVALID_SOCKET :: SOCKET
+iNVALID_SOCKET = SOCKET #const INVALID_SOCKET
 
 data SockAddr
   = SockAddrInet

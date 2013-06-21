@@ -11,7 +11,7 @@ module IOCP.Winsock (
 
     -- * Types
     Winsock,
-    Socket,
+    SOCKET,
     Family(..),
     SocketType(..),
     Protocol(..),
@@ -50,33 +50,33 @@ initWinsock :: IO Winsock
 initWinsock = failIf (== Winsock nullPtr) "initWinsock" c_iocp_winsock_init
 
 foreign import WINDOWS_CCONV unsafe "winsock2.h socket"
-    c_socket :: CFamily -> CSocketType -> CProtocol -> IO Socket
+    c_socket :: CFamily -> CSocketType -> CProtocol -> IO SOCKET
 
-socket :: Family -> SocketType -> Maybe Protocol -> IO Socket
+socket :: Family -> SocketType -> Maybe Protocol -> IO SOCKET
 socket f t mp =
     failIf (== iNVALID_SOCKET) "socket" $
     c_socket (packFamily f)
              (packSocketType t)
              (maybe noProtocol packProtocol mp)
 
-castSOCKETToHANDLE :: Socket -> HANDLE
-castSOCKETToHANDLE (Socket n) = wordPtrToPtr (fromIntegral n)
+castSOCKETToHANDLE :: SOCKET -> HANDLE
+castSOCKETToHANDLE (SOCKET n) = wordPtrToPtr (fromIntegral n)
 
-associateSocket :: CompletionPort a -> Socket -> IO (Handle a)
+associateSocket :: CompletionPort a -> SOCKET -> IO (Handle a)
 associateSocket cp sock = associate cp (castSOCKETToHANDLE sock)
 
 foreign import WINDOWS_CCONV "winsock2.h closesocket"
-    c_close :: Socket -> IO CInt
+    c_close :: SOCKET -> IO CInt
 
-close :: Socket -> IO ()
+close :: SOCKET -> IO ()
 close sock =
     failIf_ (/= 0) "close" $
     c_close sock
 
 foreign import WINDOWS_CCONV "winsock2.h bind"
-    c_bind :: Socket -> Ptr SockAddr -> CInt -> IO CInt
+    c_bind :: SOCKET -> Ptr SockAddr -> CInt -> IO CInt
 
-bind :: Socket -> SockAddr -> IO ()
+bind :: SOCKET -> SockAddr -> IO ()
 bind sock addr =
     failIf_ (/= 0) "bind" $
     withSockAddr addr $ \ptr len ->
