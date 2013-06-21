@@ -23,6 +23,10 @@ module IOCP.Windows (
     iNFINITE,
     iNVALID_HANDLE_VALUE,
 
+    -- * Conversion helpers
+    IsHANDLE(..),
+    IsLPOVERLAPPED(..),
+
     -- * Loading functions dynamically
     HMODULE(..),
     getModuleHandle,
@@ -208,6 +212,14 @@ iNFINITE = #const INFINITE
 
 iNVALID_HANDLE_VALUE :: HANDLE
 iNVALID_HANDLE_VALUE = wordPtrToPtr (-1)
+
+class IsHANDLE a where
+    fromHANDLE :: HANDLE -> a
+    toHANDLE   :: a -> HANDLE
+
+class IsLPOVERLAPPED a where
+    fromLPOVERLAPPED :: LPOVERLAPPED -> a
+    toLPOVERLAPPED   :: a -> LPOVERLAPPED
 
 newtype ErrCode = ErrCode DWORD
     deriving (Eq, Num)

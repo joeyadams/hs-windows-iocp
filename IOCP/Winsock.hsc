@@ -59,11 +59,8 @@ socket f t mp =
              (packSocketType t)
              (maybe noProtocol packProtocol mp)
 
-castSOCKETToHANDLE :: SOCKET -> HANDLE
-castSOCKETToHANDLE (SOCKET n) = wordPtrToPtr (fromIntegral n)
-
 associateSocket :: CompletionPort a -> SOCKET -> IO (Handle a)
-associateSocket cp sock = associate cp (castSOCKETToHANDLE sock)
+associateSocket cp sock = associate cp (toHANDLE sock)
 
 foreign import WINDOWS_CCONV "winsock2.h closesocket"
     c_close :: SOCKET -> IO CInt

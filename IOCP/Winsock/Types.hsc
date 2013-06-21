@@ -48,6 +48,7 @@ module IOCP.Winsock.Types (
 ) where
 
 import IOCP.Utils
+import IOCP.Windows
 
 import Control.Applicative
 import Data.List
@@ -64,6 +65,10 @@ import Numeric (showInt, showHex)
 
 newtype SOCKET = SOCKET (#type SOCKET)
   deriving (Eq, Ord, Show, Typeable)
+
+instance IsHANDLE SOCKET where
+    fromHANDLE h = SOCKET $ fromIntegral $ ptrToWordPtr h
+    toHANDLE (SOCKET s) = wordPtrToPtr $ fromIntegral s
 
 iNVALID_SOCKET :: SOCKET
 iNVALID_SOCKET = SOCKET #const INVALID_SOCKET

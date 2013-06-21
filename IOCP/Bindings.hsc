@@ -10,7 +10,6 @@ module IOCP.Bindings (
     closeHandle,
     newOverlapped,
     newOverlappedWithOffset,
-    castOverlapped,
     peekOverlapped,
     freeOverlapped,
     getQueuedCompletionStatus,
@@ -91,11 +90,6 @@ newOverlappedWithOffset offset ctx = do
     sptr <- newStablePtr ctx
     poke ptr $! OverlappedRec ol sptr
     return (Overlapped ptr)
-
--- | Upcast an 'Overlapped' to pass it to system calls that take an
--- 'LPOVERLAPPED'.
-castOverlapped :: Overlapped a -> LPOVERLAPPED
-castOverlapped (Overlapped ptr) = castPtr ptr
 
 -- | Retrieve the context value passed to 'newOverlapped'.
 peekOverlapped :: Overlapped a -> IO a
@@ -197,7 +191,7 @@ runCancelIoEx
        --   pending I\/O on this handle, regardless of what threads started it.
     -> IO Bool
 runCancelIoEx (CancelIoEx f) (Handle h) mol = do
-    b <- f h (maybe nullPtr castOverlapped mol)
+    b <- f h (maybe nullPtr toLPOVERLAPPED mol)
     if b /= 0
       then return True
       else do
@@ -239,6 +233,10 @@ newtype Handle a = Handle HANDLE
 
 newtype Overlapped a = Overlapped (Ptr (OverlappedRec a))
     deriving (Eq, Show, Storable)
+
+instance IsLPOVERLAPPED (Overlapped a) where
+    fromLPOVERLAPPED ptr = Overlapped (castPtr ptr)
+    toLPOVERLAPPED (Overlapped ptr) = castPtr ptr
 
 data OverlappedRec a = OverlappedRec !OVERLAPPED !(StablePtr a)
     deriving Eq
