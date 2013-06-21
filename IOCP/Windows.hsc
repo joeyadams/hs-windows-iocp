@@ -10,6 +10,9 @@ module IOCP.Windows (
     BOOL,
     DWORD,
     HANDLE,
+    LPDWORD,
+    LPVOID,
+    LPSTR,
     LPWSTR,
     ULONG_PTR,
     GUID(..),
@@ -72,6 +75,8 @@ import qualified System.IO.Unsafe as U
 type BOOL       = #type BOOL
 type DWORD      = #type DWORD
 type HANDLE     = Ptr ()
+type LPDWORD    = Ptr DWORD
+type LPVOID     = Ptr ()
 type LPSTR      = CString
 type LPWSTR     = CWString
 type ULONG_PTR  = #type ULONG_PTR
