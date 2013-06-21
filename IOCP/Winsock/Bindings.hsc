@@ -45,7 +45,7 @@ import Foreign.C
 
 #let alignment t = "%lu", (unsigned long)offsetof(struct {char x__; t (y__); }, y__)
 
-getExtensionFunc :: SOCKET -> GUID -> IO (FunPtr a)
+getExtensionFunc :: SOCKET -> GUID -> IO (Maybe (FunPtr a))
 getExtensionFunc sock guid =
   withPtrLen guid       $ \guid_ptr guid_sz ->
   withPtrLen nullFunPtr $ \fptr_ptr fptr_sz ->
@@ -55,8 +55,12 @@ getExtensionFunc sock guid =
                      (castPtr fptr_ptr) (fromIntegral fptr_sz)
                      bytes_ptr nullPtr nullFunPtr
     if rc == 0
-      then peek fptr_ptr
-      else throwGetLastError "getExtensionFunc"
+      then Just <$> peek fptr_ptr
+      else do
+        err <- getLastError
+        if err == e_WSAEINVAL
+          then return Nothing
+          else throwWinError "getExtensionFunc" err
 
 foreign import WINDOWS_CCONV unsafe "winsock2.h WSAIoctl"
     c_WSAIoctl
@@ -97,7 +101,17 @@ type LPWSAMSG                   = Ptr ()
 loadMswsock :: SOCKET -> IO Mswsock
 loadMswsock sock = do
     let get :: (FunPtr a -> a) -> GUID -> IO a
-        get dynamic guid = dynamic <$> getExtensionFunc sock guid
+        get dynamic guid = do
+            m <- getExtensionFunc sock guid
+            case m of
+                Nothing   -> throwWinError "loadMswsock" e_ERROR_PROC_NOT_FOUND
+                Just fptr -> return $! dynamic fptr
+    let getMaybe :: (FunPtr a -> a) -> GUID -> IO (Maybe a)
+        getMaybe dynamic guid = do
+            m <- getExtensionFunc sock guid
+            case m of
+                Nothing   -> return Nothing
+                Just fptr -> return $! Just $! dynamic fptr
     mswAcceptEx             <- get mkAcceptEx             "{B5367DF1-CBAC-11CF-95CA-00805F48A192}"
     mswConnectEx            <- get mkConnectEx            "{25A207B9-DDF3-4660-8EE9-76E58C74063E}"
     mswDisconnectEx         <- get mkDisconnectEx         "{7FDA2E11-8630-436F-A031-F536A6EEC157}"
@@ -105,7 +119,7 @@ loadMswsock sock = do
     mswTransmitFile         <- get mkTransmitFile         "{B5367DF0-CBAC-11CF-95CA-00805F48A192}"
     mswTransmitPackets      <- get mkTransmitPackets      "{D9689DA0-1F90-11D3-9971-00C04F68C876}"
     mswWSARecvMsg           <- get mkWSARecvMsg           "{F689D7C8-6F1F-436B-8A53-E54FE351C322}"
-    mswWSASendMsg           <- get mkWSASendMsg           "{A441E712-754F-43CA-84A7-0DEE44CF606D}"
+    mswWSASendMsg           <- getMaybe mkWSASendMsg      "{A441E712-754F-43CA-84A7-0DEE44CF606D}"
     return $! Mswsock{..}
 
 data Mswsock = Mswsock
@@ -116,7 +130,8 @@ data Mswsock = Mswsock
     , mswTransmitFile         :: !TransmitFile
     , mswTransmitPackets      :: !TransmitPackets
     , mswWSARecvMsg           :: !WSARecvMsg
-    , mswWSASendMsg           :: !WSASendMsg
+    , mswWSASendMsg           :: !(Maybe WSASendMsg)
+      -- ^ Windows Vista or later
     }
 
 type AcceptEx = SOCKET -> SOCKET -> PVOID -> DWORD -> DWORD -> DWORD -> LPDWORD -> LPOVERLAPPED -> IO BOOL

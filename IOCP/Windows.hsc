@@ -41,6 +41,7 @@ module IOCP.Windows (
     e_WAIT_TIMEOUT,
     e_ERROR_IO_PENDING,
     e_ERROR_NOT_FOUND,
+    e_WSAEINVAL,
     e_WSANOTINITIALISED,
     getLastError,
     throwGetLastError,
@@ -268,6 +269,9 @@ e_ERROR_IO_PENDING = ErrCode #const ERROR_IO_PENDING
 
 e_ERROR_NOT_FOUND :: ErrCode
 e_ERROR_NOT_FOUND = ErrCode #const ERROR_NOT_FOUND
+
+e_WSAEINVAL :: ErrCode
+e_WSAEINVAL = ErrCode #const WSAEINVAL
 
 e_WSANOTINITIALISED :: ErrCode
 e_WSANOTINITIALISED = ErrCode #const WSANOTINITIALISED
