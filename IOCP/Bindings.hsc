@@ -312,5 +312,5 @@ foreign import WINDOWS_CCONV unsafe "windows.h CancelIo"
 
 newtype CancelIoEx = CancelIoEx (HANDLE -> LPOVERLAPPED -> IO BOOL)
 
-foreign import WINDOWS_CCONV "dynamic"
+foreign import WINDOWS_CCONV unsafe "dynamic"
     mkCancelIoEx :: FunPtr CancelIoEx -> CancelIoEx
