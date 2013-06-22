@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 import IOCP.Bindings
 import IOCP.Windows
+import IOCP.Winsock (initWinsock)
 
 import Data.Word
 import Foreign
@@ -50,6 +51,7 @@ testMisc = do
 
 main :: IO ()
 main = do
+    _ws <- initWinsock
     testGUID
     testMisc
     putStrLn "All tests passed!"

@@ -43,11 +43,11 @@ import Foreign.C
 newtype Winsock = Winsock (Ptr ())
   deriving (Eq, Show, Storable)
 
-foreign import ccall unsafe "iocp_winsock_init"
-    c_iocp_winsock_init :: IO Winsock
+foreign import ccall unsafe "iocp_winsock_init_with_mswsock"
+    c_iocp_winsock_init_with_mswsock :: IO Winsock
 
 initWinsock :: IO Winsock
-initWinsock = failIf (== Winsock nullPtr) "initWinsock" c_iocp_winsock_init
+initWinsock = failIf (== Winsock nullPtr) "initWinsock" c_iocp_winsock_init_with_mswsock
 
 foreign import WINDOWS_CCONV unsafe "winsock2.h socket"
     c_socket :: CFamily -> CSocketType -> CProtocol -> IO SOCKET

@@ -42,7 +42,7 @@ typedef struct Winsock_s {
     WSADATA wsaData;
 } Winsock;
 
-Winsock *iocp_winsock_init(void)
+Winsock *iocp_winsock_init_with_mswsock(void)
 {
     Winsock *winsock;
     SOCKET sock;
