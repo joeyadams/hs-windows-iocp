@@ -64,7 +64,7 @@ import Numeric (showInt, showHex)
 #let alignment t = "%lu", (unsigned long)offsetof(struct {char x__; t (y__); }, y__)
 
 newtype SOCKET = SOCKET (#type SOCKET)
-  deriving (Eq, Ord, Show, Typeable)
+    deriving (Eq, Ord, Show, Typeable)
 
 instance IsHANDLE SOCKET where
     fromHANDLE h = SOCKET $ fromIntegral $ ptrToWordPtr h
@@ -276,7 +276,10 @@ data Family
   deriving (Eq, Show, Typeable)
 
 newtype CFamily = CFamily CInt
-  deriving (Eq, Show, Typeable)
+    deriving (Eq, Ord, Enum, Num, Real, Integral, Typeable)
+
+instance Show CFamily where
+    showsPrec p (CFamily n) = showsPrec p n
 
 aF_UNSPEC :: CFamily
 aF_UNSPEC = CFamily #const AF_UNSPEC
@@ -299,7 +302,10 @@ data SocketType
   deriving (Eq, Show, Typeable)
 
 newtype CSocketType = CSocketType CInt
-  deriving (Eq, Show, Typeable)
+    deriving (Eq, Ord, Enum, Num, Real, Integral, Typeable)
+
+instance Show CSocketType where
+    showsPrec p (CSocketType n) = showsPrec p n
 
 noSocketType :: CSocketType
 noSocketType = CSocketType 0
@@ -321,7 +327,10 @@ data Protocol
   deriving (Eq, Show, Typeable)
 
 newtype CProtocol = CProtocol CInt
-  deriving (Eq, Show, Typeable)
+    deriving (Eq, Ord, Enum, Num, Real, Integral, Typeable)
+
+instance Show CProtocol where
+    showsPrec p (CProtocol n) = showsPrec p n
 
 noProtocol :: CProtocol
 noProtocol = CProtocol 0

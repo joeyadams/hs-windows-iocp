@@ -227,7 +227,7 @@ class IsLPOVERLAPPED a where
     toLPOVERLAPPED   :: a -> LPOVERLAPPED
 
 newtype ErrCode = ErrCode DWORD
-    deriving (Eq, Num)
+    deriving (Eq, Ord, Enum, Num, Real, Integral, Typeable)
 
 instance Show ErrCode where
     show (ErrCode n) = f n where
@@ -258,23 +258,23 @@ instance Show ErrCode where
         f _ = "error code " ++ show n
 
 e_ERROR_PROC_NOT_FOUND :: ErrCode
-e_ERROR_PROC_NOT_FOUND = ErrCode #const ERROR_PROC_NOT_FOUND
+e_ERROR_PROC_NOT_FOUND = #const ERROR_PROC_NOT_FOUND
 
 e_WAIT_TIMEOUT :: ErrCode
-e_WAIT_TIMEOUT = ErrCode #const WAIT_TIMEOUT
+e_WAIT_TIMEOUT = #const WAIT_TIMEOUT
 
 -- | Same as @WSA_IO_PENDING@
 e_ERROR_IO_PENDING :: ErrCode
-e_ERROR_IO_PENDING = ErrCode #const ERROR_IO_PENDING
+e_ERROR_IO_PENDING = #const ERROR_IO_PENDING
 
 e_ERROR_NOT_FOUND :: ErrCode
-e_ERROR_NOT_FOUND = ErrCode #const ERROR_NOT_FOUND
+e_ERROR_NOT_FOUND = #const ERROR_NOT_FOUND
 
 e_WSAEINVAL :: ErrCode
-e_WSAEINVAL = ErrCode #const WSAEINVAL
+e_WSAEINVAL = #const WSAEINVAL
 
 e_WSANOTINITIALISED :: ErrCode
-e_WSANOTINITIALISED = ErrCode #const WSANOTINITIALISED
+e_WSANOTINITIALISED = #const WSANOTINITIALISED
 
 data WinError = WinError
     { weCode      :: !ErrCode
