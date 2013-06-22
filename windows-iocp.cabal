@@ -31,6 +31,7 @@ library
     build-tools: hsc2hs
 
     ghc-options: -Wall -fwarn-tabs
+    cc-options: -Wall
 
     c-sources:
         cbits/iocp.c

@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 module IOCP.Winsock.Bindings (
+    loadWinsock,
     getExtensionFunc,
 
     -- * Types
@@ -28,8 +29,10 @@ import IOCP.Windows
 import IOCP.Winsock.Types
 
 import Control.Applicative ((<$>))
+import Control.Exception
 import Foreign
 import Foreign.C
+import qualified System.IO.Unsafe as U (unsafePerformIO)
 
 #include <windows.h>
 
@@ -44,6 +47,23 @@ import Foreign.C
 ##endif
 
 #let alignment t = "%lu", (unsigned long)offsetof(struct {char x__; t (y__); }, y__)
+
+-- | Call @WSAStartup@ if it hasn't been yet.  This will also use @atexit@ to
+-- schedule a @WSACleanup@ when the program exits.
+--
+-- This must be called before every Winsock API call, so applications won't
+-- have to call something like @withSocketsDo@ on Windows.
+loadWinsock :: IO ()
+loadWinsock = evaluate loadWinsockCAF
+
+loadWinsockCAF :: ()
+loadWinsockCAF = U.unsafePerformIO $
+    failIf_ (== False) "loadWinsock" $
+    c_iocp_winsock_init
+{-# NOINLINE loadWinsockCAF #-}
+
+foreign import ccall "iocp_winsock_init"
+    c_iocp_winsock_init :: IO Bool
 
 getExtensionFunc :: SOCKET -> GUID -> IO (Maybe (FunPtr a))
 getExtensionFunc sock guid =
