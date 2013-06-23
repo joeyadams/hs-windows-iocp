@@ -16,15 +16,11 @@ module IOCP.Winsock.Load (
     TransmitPackets,
     WSARecvMsg,
     WSASendMsg,
-
-    -- ** Types
-    LPWSAOVERLAPPED,
-    LPWSAOVERLAPPED_COMPLETION_ROUTINE,
-    WSAOVERLAPPED_COMPLETION_ROUTINE,
 ) where
 
 import IOCP.Utils (withPtrLen)
 import IOCP.Windows
+import IOCP.Winsock.Bindings
 import IOCP.Winsock.Types
 
 import Control.Applicative ((<$>))
@@ -45,8 +41,6 @@ import qualified System.IO.Unsafe as U (unsafePerformIO)
 ##  error Unknown mingw32 arch
 ## endif
 ##endif
-
-#let alignment t = "%lu", (unsigned long)offsetof(struct {char x__; t (y__); }, y__)
 
 data Winsock = Winsock
     { mswAcceptEx             :: !AcceptEx
@@ -139,18 +133,6 @@ type TransmitPackets = SOCKET -> LPTRANSMIT_PACKETS_ELEMENT -> DWORD -> DWORD ->
 type WSARecvMsg = SOCKET -> LPWSAMSG -> LPDWORD -> LPWSAOVERLAPPED -> LPWSAOVERLAPPED_COMPLETION_ROUTINE -> IO CInt
 type WSASendMsg = SOCKET -> LPWSAMSG -> DWORD -> LPDWORD -> LPWSAOVERLAPPED -> LPWSAOVERLAPPED_COMPLETION_ROUTINE -> IO CInt
 
-type LPWSAOVERLAPPED = LPOVERLAPPED
-
-type WSAOVERLAPPED_COMPLETION_ROUTINE
-    = DWORD           -- ^ dwError
-   -> DWORD           -- ^ cbTransferred
-   -> LPWSAOVERLAPPED -- ^ lpOverlapped
-   -> DWORD           -- ^ dwFlags
-   -> IO ()
-
-type LPWSAOVERLAPPED_COMPLETION_ROUTINE =
-    FunPtr WSAOVERLAPPED_COMPLETION_ROUTINE
-
 type LPTRANSMIT_FILE_BUFFERS    = Ptr ()
 type LPTRANSMIT_PACKETS_ELEMENT = Ptr ()
 type LPWSAMSG                   = Ptr ()
@@ -171,28 +153,3 @@ foreign import WINDOWS_CCONV "dynamic"
     mkWSARecvMsg :: FunPtr WSARecvMsg -> WSARecvMsg
 foreign import WINDOWS_CCONV "dynamic"
     mkWSASendMsg :: FunPtr WSASendMsg -> WSASendMsg
-
-------------------------------------------------------------------------
--- Foreign imports
-
-foreign import ccall "iocp_winsock_init"
-    c_iocp_winsock_init :: IO Bool
-
-foreign import WINDOWS_CCONV unsafe "winsock2.h socket"
-    c_socket :: CFamily -> CSocketType -> CProtocol -> IO SOCKET
-
-foreign import WINDOWS_CCONV "winsock2.h closesocket"
-    c_close :: SOCKET -> IO CInt
-
-foreign import WINDOWS_CCONV unsafe "winsock2.h WSAIoctl"
-    c_WSAIoctl
-      :: SOCKET       -- ^ s
-      -> DWORD        -- ^ dwIoControlCode
-      -> LPVOID       -- ^ lpvInBuffer
-      -> DWORD        -- ^ cbInBuffer
-      -> LPVOID       -- ^ lpvOutBuffer
-      -> DWORD        -- ^ cbOutBuffer
-      -> LPDWORD      -- ^ lpcbBytesReturned
-      -> LPWSAOVERLAPPED
-      -> LPWSAOVERLAPPED_COMPLETION_ROUTINE
-      -> IO CInt

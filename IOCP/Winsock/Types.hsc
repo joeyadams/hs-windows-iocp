@@ -45,6 +45,11 @@ module IOCP.Winsock.Types (
     noProtocol,
     packProtocol,
     unpackProtocol,
+
+    -- * Miscellaneous
+    LPWSAOVERLAPPED,
+    LPWSAOVERLAPPED_COMPLETION_ROUTINE,
+    WSAOVERLAPPED_COMPLETION_ROUTINE,
 ) where
 
 import IOCP.Utils
@@ -345,3 +350,18 @@ unpackProtocol (CProtocol n) = case n of
     (#const IPPROTO_TCP) -> Just IPPROTO_TCP
     (#const IPPROTO_UDP) -> Just IPPROTO_UDP
     _ -> Nothing
+
+------------------------------------------------------------------------
+-- Miscellaneous
+
+type LPWSAOVERLAPPED = LPOVERLAPPED
+
+type LPWSAOVERLAPPED_COMPLETION_ROUTINE =
+    FunPtr WSAOVERLAPPED_COMPLETION_ROUTINE
+
+type WSAOVERLAPPED_COMPLETION_ROUTINE
+    = DWORD           -- ^ dwError
+   -> DWORD           -- ^ cbTransferred
+   -> LPWSAOVERLAPPED -- ^ lpOverlapped
+   -> DWORD           -- ^ dwFlags
+   -> IO ()

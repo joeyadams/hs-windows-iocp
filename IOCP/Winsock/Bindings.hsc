@@ -1,0 +1,46 @@
+{-# LANGUAGE CPP #-}
+module IOCP.Winsock.Bindings (
+    c_iocp_winsock_init,
+    c_socket,
+    c_close,
+    c_WSAIoctl,
+) where
+
+import IOCP.Windows
+import IOCP.Winsock.Types
+
+import Foreign.C
+
+#include <windows.h>
+
+##ifdef mingw32_HOST_OS
+## if defined(i386_HOST_ARCH)
+##  define WINDOWS_CCONV stdcall
+## elif defined(x86_64_HOST_ARCH)
+##  define WINDOWS_CCONV ccall
+## else
+##  error Unknown mingw32 arch
+## endif
+##endif
+
+foreign import ccall "iocp_winsock_init"
+    c_iocp_winsock_init :: IO Bool
+
+foreign import WINDOWS_CCONV unsafe "winsock2.h socket"
+    c_socket :: CFamily -> CSocketType -> CProtocol -> IO SOCKET
+
+foreign import WINDOWS_CCONV "winsock2.h closesocket"
+    c_close :: SOCKET -> IO CInt
+
+foreign import WINDOWS_CCONV unsafe "winsock2.h WSAIoctl"
+    c_WSAIoctl
+      :: SOCKET       -- ^ s
+      -> DWORD        -- ^ dwIoControlCode
+      -> LPVOID       -- ^ lpvInBuffer
+      -> DWORD        -- ^ cbInBuffer
+      -> LPVOID       -- ^ lpvOutBuffer
+      -> DWORD        -- ^ cbOutBuffer
+      -> LPDWORD      -- ^ lpcbBytesReturned
+      -> LPWSAOVERLAPPED
+      -> LPWSAOVERLAPPED_COMPLETION_ROUTINE
+      -> IO CInt
