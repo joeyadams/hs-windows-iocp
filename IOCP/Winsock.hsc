@@ -24,6 +24,7 @@ module IOCP.Winsock (
 import IOCP.Bindings
 import IOCP.Windows
 import IOCP.Winsock.Bindings
+import qualified IOCP.Winsock.Load as Load
 import IOCP.Winsock.Types
 
 import Foreign
@@ -74,16 +75,13 @@ bind sock addr =
     withSockAddr addr $ \ptr len ->
     c_bind sock ptr len
 
-foreign import ccall "iocp_winsock_connect"
-    c_iocp_winsock_connect
-        :: Winsock -> Handle a -> Ptr SockAddr -> CInt -> Overlapped a -> IO BOOL
-
 -- | Uses @ConnectEx@, which requires the socket to be initially bound.
-connect :: Winsock -> Handle a -> SockAddr -> Overlapped a -> IO IOStatus
-connect ws h addr ol =
-    checkPendingIf_ (== 0) "connect" $
+connect :: Handle a -> SockAddr -> Overlapped a -> IO IOStatus
+connect h addr ol = do
+    ws <- Load.loadWinsock
     withSockAddr addr $ \ptr len ->
-    c_iocp_winsock_connect ws h ptr len ol
+      checkPendingIf_ (== 0) "connect" $
+      Load.mswConnectEx ws (toSOCKET h) ptr len nullPtr 0 nullPtr (toLPOVERLAPPED ol)
 
 send :: Handle cv -> LPWSABUF -> Int -> Overlapped cv -> IO IOStatus
 send h buf bufCount ol =

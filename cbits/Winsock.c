@@ -148,11 +148,6 @@ fail0:
     return NULL;
 }
 
-BOOL iocp_winsock_connect(Winsock *winsock, HANDLE h, SOCKADDR *addr, int addrLen, OVERLAPPED *ol)
-{
-    return winsock->ConnectEx((SOCKET) h, addr, addrLen, NULL, 0, NULL, ol);
-}
-
 BOOL iocp_winsock_recv(SOCKET sock, char *buf, u_long bufsize, OVERLAPPED *ol)
 {
     WSABUF wsabuf = {.len = bufsize, .buf = buf};
