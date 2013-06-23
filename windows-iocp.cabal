@@ -25,7 +25,7 @@ library
         IOCP.Utils
         IOCP.Windows
         IOCP.Winsock
-        IOCP.Winsock.Bindings
+        IOCP.Winsock.Load
         IOCP.Winsock.Types
 
     build-tools: hsc2hs

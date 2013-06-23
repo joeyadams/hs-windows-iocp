@@ -2,7 +2,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-module IOCP.Winsock.Bindings (
+module IOCP.Winsock.Load (
     loadWinsock,
     loadWinsock_,
     Winsock(..),
