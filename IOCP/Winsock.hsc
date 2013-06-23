@@ -1,7 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module IOCP.Winsock (
-    initWinsock,
     socket,
     associateSocket,
     close,
@@ -10,7 +9,6 @@ module IOCP.Winsock (
     send,
 
     -- * Types
-    Winsock,
     SOCKET,
     Family(..),
     SocketType(..),
@@ -41,15 +39,6 @@ import Foreign.C
 ##endif
 
 #include <winsock2.h>
-
-newtype Winsock = Winsock (Ptr ())
-  deriving (Eq, Show, Storable)
-
-foreign import ccall unsafe "iocp_winsock_init_with_mswsock"
-    c_iocp_winsock_init_with_mswsock :: IO Winsock
-
-initWinsock :: IO Winsock
-initWinsock = failIf (== Winsock nullPtr) "initWinsock" c_iocp_winsock_init_with_mswsock
 
 socket :: Family -> SocketType -> Maybe Protocol -> IO SOCKET
 socket f t mp =
