@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RankNTypes #-}
 module IOCP.Utils (
     -- * Shifts with conversion
     (.<<.),
@@ -19,11 +20,13 @@ module IOCP.Utils (
 
     -- * Miscellaneous
     delimit,
+    forkOSWithUnmask,
     withPtrLen,
     zeroMemory,
 ) where
 
 import Control.Applicative ((<$>))
+import Control.Concurrent
 import Data.Bits
 import Data.Char (chr, ord)
 import Data.Data (Data)
@@ -35,6 +38,7 @@ import Foreign.C.Types
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
 import Foreign.Storable
+import GHC.IO (unsafeUnmask)
 import Text.Printf (PrintfArg)
 
 -- infixl 5 .|.
@@ -170,6 +174,9 @@ readHex32 s0 = do
 -- | Separate a list of 'ShowS' strings with a delimiter character.
 delimit :: Char -> [ShowS] -> ShowS
 delimit delim = foldr (.) id . intersperse (showChar delim)
+
+forkOSWithUnmask :: ((forall a. IO a -> IO a) -> IO ()) -> IO ThreadId
+forkOSWithUnmask io = forkOS (io unsafeUnmask)
 
 -- | Like 'with', but also provide the size of the value (in bytes).
 withPtrLen :: Storable a => a -> (Ptr a -> Int -> IO b) -> IO b
