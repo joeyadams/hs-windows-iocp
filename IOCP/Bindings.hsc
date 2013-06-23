@@ -54,7 +54,7 @@ foreign import WINDOWS_CCONV unsafe "windows.h PostQueuedCompletionStatus"
         -> IO BOOL
 
 foreign import WINDOWS_CCONV unsafe "windows.h CancelIo"
-    c_CancelIo :: Handle a -> IO BOOL
+    c_CancelIo :: HANDLE -> IO BOOL
 
 newtype CancelIoEx = CancelIoEx (HANDLE -> LPOVERLAPPED -> IO BOOL)
 

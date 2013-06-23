@@ -163,7 +163,7 @@ postValue cport a = newOverlapped a >>= postQueuedCompletionStatus cport
 --    for each operation.  Multiple 'Handle's may share a proxy thread,
 --    but operations on the same handle may not.
 cancelIo :: Handle a -> IO ()
-cancelIo h =
+cancelIo (Handle h) =
     failIf_ (== 0) "cancelIo" $
     c_CancelIo h
 
