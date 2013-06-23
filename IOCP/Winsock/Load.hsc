@@ -7,11 +7,6 @@ module IOCP.Winsock.Load (
     loadWinsock_,
     Winsock(..),
 
-    -- * Types
-    LPWSAOVERLAPPED,
-    LPWSAOVERLAPPED_COMPLETION_ROUTINE,
-    WSAOVERLAPPED_COMPLETION_ROUTINE,
-
     -- * Mswsock
     AcceptEx,
     ConnectEx,
@@ -21,6 +16,11 @@ module IOCP.Winsock.Load (
     TransmitPackets,
     WSARecvMsg,
     WSASendMsg,
+
+    -- ** Types
+    LPWSAOVERLAPPED,
+    LPWSAOVERLAPPED_COMPLETION_ROUTINE,
+    WSAOVERLAPPED_COMPLETION_ROUTINE,
 ) where
 
 import IOCP.Utils (withPtrLen)
