@@ -51,7 +51,7 @@ foreign import WINDOWS_CCONV unsafe "winsock2.h WSAIoctl"
       -> LPWSAOVERLAPPED_COMPLETION_ROUTINE
       -> IO CInt
 
-foreign import ccall unsafe "winsock2.h WSASend"
+foreign import WINDOWS_CCONV unsafe "winsock2.h WSASend"
     c_WSASend
       :: SOCKET       -- ^ s
       -> LPWSABUF     -- ^ lpBuffers
