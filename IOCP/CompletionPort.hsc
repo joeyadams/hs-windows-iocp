@@ -1,7 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DoAndIfThenElse #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RankNTypes #-}
 -- | Low-level completion port management and usage
 module IOCP.CompletionPort (
@@ -33,24 +32,11 @@ module IOCP.CompletionPort (
     Completion(..),
 ) where
 
+import IOCP.Bindings
+import IOCP.Types
 import IOCP.Windows
 
-import Control.Applicative ((<$>))
 import Foreign
-
-#include "iocp.h"
-
-##ifdef mingw32_HOST_OS
-## if defined(i386_HOST_ARCH)
-##  define WINDOWS_CCONV stdcall
-## elif defined(x86_64_HOST_ARCH)
-##  define WINDOWS_CCONV ccall
-## else
-##  error Unknown mingw32 arch
-## endif
-##endif
-
-#let alignment t = "%lu", (unsigned long)offsetof(struct {char x__; t (y__); }, y__)
 
 newCompletionPort :: IO (CompletionPort a)
 newCompletionPort =
@@ -68,6 +54,11 @@ associate cport handle = do
 
 closeHandle :: Handle a -> IO ()
 closeHandle (Handle h) = closeHANDLE "closeHandle" h
+
+closeHANDLE :: String -> HANDLE -> IO ()
+closeHANDLE loc h =
+    failIf_ (== 0) loc $
+    c_CloseHandle h
 
 -- | Allocate a new
 -- <http://msdn.microsoft.com/en-us/library/windows/desktop/ms684342%28v=vs.85%29.aspx OVERLAPPED>
@@ -128,7 +119,7 @@ getQueuedCompletionStatus cport timeout =
         return $ Just (c, ol)
     else if ol == Overlapped nullPtr then
         -- GetQueuedCompletionStatus failed
-        if err == #{const WAIT_TIMEOUT}
+        if err == e_WAIT_TIMEOUT
             then return Nothing
             else throwWinError "getQueuedCompletionStatus" err
     else do
@@ -176,12 +167,6 @@ cancelIo h =
     failIf_ (== 0) "cancelIo" $
     c_CancelIo h
 
--- | Retrieve the @CancelIoEx@ function, if it is available on this system.
--- @CancelIoEx@ was introduced in Windows Vista.
-loadCancelIoEx :: IO (Maybe CancelIoEx)
-loadCancelIoEx =
-    fmap mkCancelIoEx <$> getProcAddress kernel32 "CancelIoEx"
-
 -- | Cancel pending I\/O on a given handle.  Return 'False' if nothing was
 -- found to be canceled (e.g. because the I\/O already completed).
 runCancelIoEx
@@ -222,96 +207,3 @@ checkPendingIf_ p loc act = do
             then return Pending
             else throwWinError loc err
       else return Done
-
-------------------------------------------------------------------------
--- Types
-
-newtype CompletionPort a = CompletionPort HANDLE
-    deriving (Eq, Show, Storable)
-
-newtype Handle a = Handle HANDLE
-    deriving (Eq, Show, Storable)
-
-newtype Overlapped a = Overlapped (Ptr (OverlappedRec a))
-    deriving (Eq, Show, Storable)
-
-instance IsLPOVERLAPPED (Overlapped a) where
-    fromLPOVERLAPPED ptr = Overlapped (castPtr ptr)
-    toLPOVERLAPPED (Overlapped ptr) = castPtr ptr
-
-data OverlappedRec a = OverlappedRec !OVERLAPPED !(StablePtr a)
-    deriving Eq
-
-instance Storable (OverlappedRec a) where
-    sizeOf    _ = #{size      OverlappedRec}
-    alignment _ = #{alignment OverlappedRec}
-    peek p = do
-        ol   <- (#peek OverlappedRec, ol)   p
-        sptr <- (#peek OverlappedRec, sptr) p
-        return $! OverlappedRec ol sptr
-    poke p (OverlappedRec ol sptr) = do
-        (#poke OverlappedRec, ol)   p ol
-        (#poke OverlappedRec, sptr) p sptr
-
-instance Show (OverlappedRec a) where
-    showsPrec p (OverlappedRec ol sptr) =
-      showParen (p > 10) $
-        showString "OverlappedRec " .
-        showsPrec 11 ol . showChar ' ' .
-        showsPrec 11 (castStablePtrToPtr sptr)
-
-peekOverlappedStablePtr :: Overlapped a -> IO (StablePtr a)
-peekOverlappedStablePtr (Overlapped p) = (#peek OverlappedRec, sptr) p
-
-data Completion = Completion
-    { cNumBytes :: !DWORD   -- ^ Number of bytes transferred during I/O operation
-    , cError    :: !ErrCode -- ^ Zero if the I/O was successful
-    }
-    deriving Show
-
-------------------------------------------------------------------------
-
-closeHANDLE :: String -> HANDLE -> IO ()
-closeHANDLE loc h =
-    failIf_ (== 0) loc $
-    c_CloseHandle h
-
-------------------------------------------------------------------------
-
-foreign import WINDOWS_CCONV unsafe "windows.h CreateIoCompletionPort"
-    c_CreateIoCompletionPort
-        :: HANDLE                 -- ^ FileHandle
-        -> CompletionPort a       -- ^ ExistingCompletionPort
-        -> ULONG_PTR              -- ^ CompletionKey
-        -> DWORD                  -- ^ NumberOfConcurrentThreads
-        -> IO (CompletionPort a)
-
-foreign import WINDOWS_CCONV safe "windows.h CloseHandle"
-    c_CloseHandle :: HANDLE -> IO BOOL
-
--- TODO: even though this blocks, we can probably mark it unsafe because we
--- call it from a bound thread.
-foreign import WINDOWS_CCONV safe "GetQueuedCompletionStatus"
-    c_GetQueuedCompletionStatus
-        :: CompletionPort a
-        -> Ptr DWORD          -- ^ lpNumberOfBytes
-        -> Ptr ULONG_PTR      -- ^ lpCompletionKey
-        -> Ptr (Overlapped a) -- ^ lpOverlapped
-        -> DWORD              -- ^ dwMilliseconds
-        -> IO BOOL
-
-foreign import WINDOWS_CCONV unsafe "windows.h PostQueuedCompletionStatus"
-    c_PostQueuedCompletionStatus
-        :: CompletionPort a
-        -> DWORD              -- ^ dwNumberOfBytesTransferred
-        -> ULONG_PTR          -- ^ dwCompletionKey
-        -> Overlapped a       -- ^ lpOverlapped
-        -> IO BOOL
-
-foreign import WINDOWS_CCONV unsafe "windows.h CancelIo"
-    c_CancelIo :: Handle a -> IO BOOL
-
-newtype CancelIoEx = CancelIoEx (HANDLE -> LPOVERLAPPED -> IO BOOL)
-
-foreign import WINDOWS_CCONV unsafe "dynamic"
-    mkCancelIoEx :: FunPtr CancelIoEx -> CancelIoEx
