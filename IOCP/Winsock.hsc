@@ -17,6 +17,9 @@ module IOCP.Winsock (
     aNY_PORT,
     iNADDR_ANY,
     iN6ADDR_ANY,
+    IOStatus(..),
+    LPWSABUF,
+    WSABUF(..),
 ) where
 
 import IOCP.Bindings
