@@ -1,10 +1,13 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 module IOCP.Winsock.Types (
     SOCKET(..),
     iNVALID_SOCKET,
+    IsSOCKET(..),
 
     -- * Socket addresses
     SockAddr(..),
@@ -54,6 +57,7 @@ module IOCP.Winsock.Types (
     WSAOVERLAPPED_COMPLETION_ROUTINE,
 ) where
 
+import IOCP.Bindings
 import IOCP.Utils
 import IOCP.Windows
 
@@ -79,6 +83,18 @@ instance IsHANDLE SOCKET where
 
 iNVALID_SOCKET :: SOCKET
 iNVALID_SOCKET = SOCKET #const INVALID_SOCKET
+
+class IsSOCKET a where
+    fromSOCKET :: SOCKET -> a
+    toSOCKET   :: a -> SOCKET
+
+instance IsSOCKET HANDLE where
+    fromSOCKET = toHANDLE
+    toSOCKET   = fromHANDLE
+
+instance IsSOCKET (Handle a) where
+    fromSOCKET s = Handle (fromSOCKET s)
+    toSOCKET (Handle h) = toSOCKET h
 
 data SockAddr
   = SockAddrInet

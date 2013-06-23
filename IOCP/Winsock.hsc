@@ -23,6 +23,7 @@ module IOCP.Winsock (
 
 import IOCP.Bindings
 import IOCP.Windows
+import IOCP.Winsock.Bindings
 import IOCP.Winsock.Types
 
 import Foreign
@@ -49,9 +50,6 @@ foreign import ccall unsafe "iocp_winsock_init_with_mswsock"
 initWinsock :: IO Winsock
 initWinsock = failIf (== Winsock nullPtr) "initWinsock" c_iocp_winsock_init_with_mswsock
 
-foreign import WINDOWS_CCONV unsafe "winsock2.h socket"
-    c_socket :: CFamily -> CSocketType -> CProtocol -> IO SOCKET
-
 socket :: Family -> SocketType -> Maybe Protocol -> IO SOCKET
 socket f t mp =
     failIf (== iNVALID_SOCKET) "socket" $
@@ -61,9 +59,6 @@ socket f t mp =
 
 associateSocket :: CompletionPort a -> SOCKET -> IO (Handle a)
 associateSocket cp sock = associate cp (toHANDLE sock)
-
-foreign import WINDOWS_CCONV "winsock2.h closesocket"
-    c_close :: SOCKET -> IO CInt
 
 close :: SOCKET -> IO ()
 close sock =
@@ -90,10 +85,7 @@ connect ws h addr ol =
     withSockAddr addr $ \ptr len ->
     c_iocp_winsock_connect ws h ptr len ol
 
-foreign import ccall "iocp_winsock_send"
-    c_iocp_winsock_send :: Handle a -> Ptr CChar -> CULong -> Overlapped a -> IO CInt
-
-send :: Handle cv -> Ptr a -> Int -> Overlapped cv -> IO IOStatus
-send h ptr len ol =
+send :: Handle cv -> LPWSABUF -> Int -> Overlapped cv -> IO IOStatus
+send h buf bufCount ol =
     checkPendingIf_ (/= 0) "send" $
-    c_iocp_winsock_send h (castPtr ptr) (fromIntegral len) ol
+    c_WSASend (toSOCKET h) buf (fromIntegral bufCount) nullPtr 0 (toLPOVERLAPPED ol) nullFunPtr
