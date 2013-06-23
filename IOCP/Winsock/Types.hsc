@@ -47,8 +47,10 @@ module IOCP.Winsock.Types (
     unpackProtocol,
 
     -- * Miscellaneous
+    LPWSABUF,
     LPWSAOVERLAPPED,
     LPWSAOVERLAPPED_COMPLETION_ROUTINE,
+    WSABUF(..),
     WSAOVERLAPPED_COMPLETION_ROUTINE,
 ) where
 
@@ -60,7 +62,7 @@ import Data.List
 import Data.Typeable (Typeable)
 import Data.Word
 import Foreign
-import Foreign.C.Types (CInt(..))
+import Foreign.C.Types
 import Numeric (showInt, showHex)
 
 #include <winsock2.h>
@@ -365,3 +367,22 @@ type WSAOVERLAPPED_COMPLETION_ROUTINE
    -> LPWSAOVERLAPPED -- ^ lpOverlapped
    -> DWORD           -- ^ dwFlags
    -> IO ()
+
+data WSABUF = WSABUF
+    { wbLen :: !CULong
+    , wbBuf :: !(Ptr CChar)
+    }
+  deriving (Eq, Show)
+
+type LPWSABUF = Ptr WSABUF
+
+instance Storable WSABUF where
+    sizeOf    _ = (#size      WSABUF)
+    alignment _ = (#alignment WSABUF)
+    peek p = do
+        wbLen <- (#peek WSABUF, len) p
+        wbBuf <- (#peek WSABUF, buf) p
+        return $! WSABUF{..}
+    poke p WSABUF{..} = do
+        (#poke WSABUF, len) p wbLen
+        (#poke WSABUF, buf) p wbBuf
