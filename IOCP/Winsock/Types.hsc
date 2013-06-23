@@ -57,7 +57,7 @@ module IOCP.Winsock.Types (
     WSAOVERLAPPED_COMPLETION_ROUTINE,
 ) where
 
-import IOCP.Bindings
+import qualified IOCP.CompletionPort as CP
 import IOCP.Utils
 import IOCP.Windows
 
@@ -92,9 +92,9 @@ instance IsSOCKET HANDLE where
     fromSOCKET = toHANDLE
     toSOCKET   = fromHANDLE
 
-instance IsSOCKET (Handle a) where
-    fromSOCKET s = Handle (fromSOCKET s)
-    toSOCKET (Handle h) = toSOCKET h
+instance IsSOCKET (CP.Handle a) where
+    fromSOCKET s = CP.Handle (fromSOCKET s)
+    toSOCKET (CP.Handle h) = toSOCKET h
 
 data SockAddr
   = SockAddrInet

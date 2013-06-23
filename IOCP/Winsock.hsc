@@ -22,7 +22,7 @@ module IOCP.Winsock (
     WSABUF(..),
 ) where
 
-import IOCP.Bindings
+import IOCP.CompletionPort
 import IOCP.Windows
 import IOCP.Winsock.Bindings
 import IOCP.Winsock.Load

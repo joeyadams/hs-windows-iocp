@@ -3,7 +3,8 @@
 {-# LANGUAGE DoAndIfThenElse #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RankNTypes #-}
-module IOCP.Bindings (
+-- | Low-level completion port management and usage
+module IOCP.CompletionPort (
     newCompletionPort,
     closeCompletionPort,
     associate,
