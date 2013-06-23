@@ -22,7 +22,7 @@ module IOCP.Winsock (
 import IOCP.Bindings
 import IOCP.Windows
 import IOCP.Winsock.Bindings
-import qualified IOCP.Winsock.Load as Load
+import IOCP.Winsock.Load
 import IOCP.Winsock.Types
 
 import Foreign
@@ -41,38 +41,46 @@ import Foreign.C
 #include <winsock2.h>
 
 socket :: Family -> SocketType -> Maybe Protocol -> IO SOCKET
-socket f t mp =
+socket f t mp = do
+    loadWinsock_
     failIf (== iNVALID_SOCKET) "socket" $
-    c_socket (packFamily f)
-             (packSocketType t)
-             (maybe noProtocol packProtocol mp)
+      c_socket (packFamily f)
+               (packSocketType t)
+               (maybe noProtocol packProtocol mp)
 
 associateSocket :: CompletionPort a -> SOCKET -> IO (Handle a)
 associateSocket cp sock = associate cp (toHANDLE sock)
 
 close :: SOCKET -> IO ()
-close sock =
+close sock = do
+    loadWinsock_
     failIf_ (/= 0) "close" $
-    c_close sock
+      c_close sock
 
 foreign import WINDOWS_CCONV "winsock2.h bind"
     c_bind :: SOCKET -> Ptr SockAddr -> CInt -> IO CInt
 
 bind :: SOCKET -> SockAddr -> IO ()
-bind sock addr =
+bind sock addr = do
+    loadWinsock_
     failIf_ (/= 0) "bind" $
-    withSockAddr addr $ \ptr len ->
-    c_bind sock ptr len
+      withSockAddr addr $ \ptr len ->
+      c_bind sock ptr len
 
 -- | Uses @ConnectEx@, which requires the socket to be initially bound.
 connect :: Handle a -> SockAddr -> Overlapped a -> IO IOStatus
 connect h addr ol = do
-    ws <- Load.loadWinsock
+    ws <- loadWinsock
     withSockAddr addr $ \ptr len ->
       checkPendingIf_ (== 0) "connect" $
-      Load.mswConnectEx ws (toSOCKET h) ptr len nullPtr 0 nullPtr (toLPOVERLAPPED ol)
+      mswConnectEx ws (toSOCKET h) ptr len nullPtr 0 nullPtr (toLPOVERLAPPED ol)
 
 send :: Handle cv -> LPWSABUF -> Int -> Overlapped cv -> IO IOStatus
-send h buf bufCount ol =
+send h buf bufCount ol = do
+    loadWinsock_
     checkPendingIf_ (/= 0) "send" $
-    c_WSASend (toSOCKET h) buf (fromIntegral bufCount) nullPtr 0 (toLPOVERLAPPED ol) nullFunPtr
+      c_WSASend (toSOCKET h)
+                buf (fromIntegral bufCount)
+                nullPtr
+                0
+                (toLPOVERLAPPED ol) nullFunPtr
