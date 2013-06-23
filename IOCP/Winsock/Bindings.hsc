@@ -3,6 +3,7 @@ module IOCP.Winsock.Bindings (
     c_iocp_winsock_init,
     c_socket,
     c_close,
+    c_bind,
     c_WSAIoctl,
     c_WSASend,
 ) where
@@ -10,6 +11,7 @@ module IOCP.Winsock.Bindings (
 import IOCP.Windows
 import IOCP.Winsock.Types
 
+import Foreign
 import Foreign.C
 
 #include <windows.h>
@@ -32,6 +34,9 @@ foreign import WINDOWS_CCONV unsafe "winsock2.h socket"
 
 foreign import WINDOWS_CCONV "winsock2.h closesocket"
     c_close :: SOCKET -> IO CInt
+
+foreign import WINDOWS_CCONV "winsock2.h bind"
+    c_bind :: SOCKET -> Ptr SockAddr -> CInt -> IO CInt
 
 foreign import WINDOWS_CCONV unsafe "winsock2.h WSAIoctl"
     c_WSAIoctl

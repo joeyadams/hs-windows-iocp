@@ -26,7 +26,6 @@ import IOCP.Winsock.Load
 import IOCP.Winsock.Types
 
 import Foreign
-import Foreign.C
 
 ##ifdef mingw32_HOST_OS
 ## if defined(i386_HOST_ARCH)
@@ -56,9 +55,6 @@ close sock = do
     loadWinsock_
     failIf_ (/= 0) "close" $
       c_close sock
-
-foreign import WINDOWS_CCONV "winsock2.h bind"
-    c_bind :: SOCKET -> Ptr SockAddr -> CInt -> IO CInt
 
 bind :: SOCKET -> SockAddr -> IO ()
 bind sock addr = do
