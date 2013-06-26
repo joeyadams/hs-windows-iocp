@@ -8,11 +8,11 @@ typedef struct _OverlappedRec {
 
 // Tells an I/O manager thread what to do when the Overlapped appears on the
 // completion port.
-typedef enum _OverlappedTag {
+typedef enum _OverlappedState {
     O_START,
     O_SIGNAL,
     O_CANCEL,
-} OverlappedTag;
+} OverlappedState;
 
 /*
  * Before an I/O request is started, an Overlapped is allocated with
@@ -30,7 +30,7 @@ typedef BOOL (*StartCallback)(void *overlapped);
 
 typedef struct _Overlapped {
     OVERLAPPED base;
-    OverlappedTag tag;
+    OverlappedState state;
     union {
         // O_START
         struct {

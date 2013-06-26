@@ -40,7 +40,7 @@ void *iocp_alloc_start(size_t size, StartCallback callback)
 {
     Overlapped *ol = iocp_alloc(size);
     if (ol != NULL) {
-        ol->tag = O_START;
+        ol->state = O_START;
         ol->start.callback = callback;
     }
     return ol;
@@ -50,7 +50,7 @@ void *iocp_alloc_cancel(HANDLE handle)
 {
     Overlapped *ol = iocp_alloc(sizeof(Overlapped));
     if (ol != NULL) {
-        ol->tag = O_CANCEL;
+        ol->state = O_CANCEL;
         ol->cancel.handle = handle;
     }
     return ol;
@@ -61,14 +61,14 @@ void *iocp_alloc_cancel(HANDLE handle)
 // is expected.
 BOOL iocp_start(Overlapped *ol)
 {
-    assert(ol->tag == O_START);
+    assert(ol->state == O_START);
     StartCallback start_callback = ol->start.callback;
     HsStablePtr signal_callback = ol->start.signal_callback;
 
     // Morph the Overlapped into an O_SIGNAL so when it appears in the
     // completion port, the manager will know to treat it as completed I/O
     // instead of another start request.
-    ol->tag = O_SIGNAL;
+    ol->state = O_SIGNAL;
     ol->signal.callback = signal_callback;
 
     return start_callback(ol);
