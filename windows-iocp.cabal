@@ -23,6 +23,7 @@ library
     exposed-modules:
         IOCP.Bindings
         IOCP.CompletionPort
+        IOCP.Manager
         IOCP.Utils
         IOCP.Windows
         IOCP.Winsock
