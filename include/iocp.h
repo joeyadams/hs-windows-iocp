@@ -11,6 +11,11 @@ typedef struct _OverlappedRec {
 typedef enum _OverlappedState {
     O_START,
     O_SIGNAL,
+
+    // Call CancelIo on the cancelHandle, then free this Overlapped.
+    // CancelIo cancels pending I/O issued by the current thread on
+    // the given handle, allowing us to cancel individual operations
+    // in the absence of CancelIoEx.
     O_CANCEL,
 } OverlappedState;
 
@@ -31,33 +36,23 @@ typedef BOOL (*StartCallback)(void *overlapped);
 typedef struct _Overlapped {
     OVERLAPPED base;
     OverlappedState state;
-    union {
-        // O_START
-        struct {
-            // Callback that starts the overlapped I/O, returning TRUE if a
-            // completion is expected to appear when the I/O is done.
-            StartCallback callback;
 
-            // Haskell function called when the I/O completes.
-            // This is initialized by the I/O manager.
-            HsStablePtr signal_callback;
-        } start;
+    // Callback that starts the overlapped I/O, returning TRUE if a
+    // completion is expected to appear when the I/O is done.
+    //
+    // States: O_START
+    StartCallback startCallback;
 
-        // O_SIGNAL
-        struct {
-            // Called when this overlapped is dequeued from the completion port.
-            HsStablePtr callback;
-        } signal;
+    // Haskell function called when the I/O completes.
+    // This is initialized by the I/O manager.
+    //
+    // States: O_START, O_SIGNAL
+    HsStablePtr signalCallback;
 
-        // O_CANCEL
-        //    Call CancelIo on the given handle, then free this Overlapped.
-        //    CancelIo cancels pending I/O issued by the current thread on
-        //    the given handle, allowing us to cancel individual operations
-        //    in the absence of CancelIoEx.
-        struct {
-            HANDLE handle;
-        } cancel;
-    };
+    // Handle to cancel using CancelIo.
+    //
+    // States: O_CANCEL
+    HANDLE cancelHandle;
 } Overlapped;
 
 // Allocate an Overlapped as a command to start I\/O.
@@ -70,6 +65,9 @@ void *iocp_alloc_cancel(HANDLE handle);
 // Free an Overlapped.  Overlapped objects aren't (necessarily) allocated with
 // malloc and free, so use this instead of free to free an Overlapped allocated
 // with iocp_alloc_start or similar.
+//
+// If the Overlapped has a signalCallback, don't forget to call
+// Foreign.StablePtr.freeStablePtr as well.
 void iocp_free(void *ol);
 
 // Start an allocated I/O request.  Return TRUE if a completion is expected to
