@@ -30,12 +30,6 @@ static void *iocp_alloc(size_t size)
     return ol;
 }
 
-void iocp_free(void *ol)
-{
-    if (ol != NULL)
-        HeapFree(GetProcessHeap(), 0, ol);
-}
-
 void *iocp_alloc_start(size_t size, StartCallback callback)
 {
     Overlapped *ol = iocp_alloc(size);
@@ -56,9 +50,12 @@ void *iocp_alloc_cancel(HANDLE handle)
     return ol;
 }
 
-// Start an allocated I/O request.  Return TRUE if a completion is expected to
-// be delivered when the I/O is done, or FALSE on failure where no completion
-// is expected.
+void iocp_free(void *ol)
+{
+    if (ol != NULL)
+        HeapFree(GetProcessHeap(), 0, ol);
+}
+
 BOOL iocp_start(Overlapped *ol)
 {
     assert(ol->state == O_START);

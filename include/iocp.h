@@ -59,3 +59,25 @@ typedef struct _Overlapped {
         } cancel;
     };
 } Overlapped;
+
+// Allocate an Overlapped as a command to start I\/O.
+// See iocp.c for example usage, such as iocp_alloc_ReadFile.
+void *iocp_alloc_start(size_t size, StartCallback callback);
+
+// Allocate an Overlapped as a command to issue CancelIo on the given handle.
+void *iocp_alloc_cancel(HANDLE handle);
+
+// Free an Overlapped.  Overlapped objects aren't (necessarily) allocated with
+// malloc and free, so use this instead of free to free an Overlapped allocated
+// with iocp_alloc_start or similar.
+void iocp_free(void *ol);
+
+// Start an allocated I/O request.  Return TRUE if a completion is expected to
+// be delivered when the I/O is done, or FALSE on failure where no completion
+// is expected.
+BOOL iocp_start(Overlapped *ol);
+
+// I/O command constructors.  These don't start I/O themselves, but tell the
+// I/O manager what to do to start the I/O.
+Overlapped *iocp_alloc_ReadFile(HANDLE handle, LPVOID buffer, DWORD bytesToRead);
+Overlapped *iocp_alloc_WriteFile(HANDLE handle, LPCVOID buffer, DWORD bytesToWrite);
