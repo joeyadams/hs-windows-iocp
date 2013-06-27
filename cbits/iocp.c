@@ -40,7 +40,7 @@ void *iocp_alloc_start(size_t size, StartCallback callback)
     return ol;
 }
 
-void *iocp_alloc_cancel(HANDLE handle)
+Overlapped *iocp_alloc_cancel(HANDLE handle)
 {
     Overlapped *ol = iocp_alloc(sizeof(Overlapped));
     if (ol != NULL) {

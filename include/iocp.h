@@ -60,7 +60,7 @@ typedef struct _Overlapped {
 void *iocp_alloc_start(size_t size, StartCallback callback);
 
 // Allocate an Overlapped as a command to issue CancelIo on the given handle.
-void *iocp_alloc_cancel(HANDLE handle);
+Overlapped *iocp_alloc_cancel(HANDLE handle);
 
 // Free an Overlapped.  Overlapped objects aren't (necessarily) allocated with
 // malloc and free, so use this instead of free to free an Overlapped allocated
