@@ -13,7 +13,7 @@ category:           System
 build-type:         Simple
 cabal-version:      >= 1.14
 
-extra-source-files: include/iocp.h
+extra-source-files: include/iocp.h include/errno-posix.h
 
 source-repository head
     type:       git
@@ -43,7 +43,7 @@ library
         cbits/Winsock.c
 
     include-dirs: include
-    includes: iocp.h
+    includes: iocp.h errno-posix.h
 
     build-depends: base >= 4.6 && < 5
 

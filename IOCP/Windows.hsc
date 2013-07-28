@@ -45,12 +45,6 @@ module IOCP.Windows (
 
     -- * System errors
     ErrCode(..),
-    e_ERROR_PROC_NOT_FOUND,
-    e_WAIT_TIMEOUT,
-    e_ERROR_IO_PENDING,
-    e_ERROR_NOT_FOUND,
-    e_WSAEINVAL,
-    e_WSANOTINITIALISED,
     getLastError,
     throwGetLastError,
     throwErrCode,
@@ -79,9 +73,10 @@ import Data.String (IsString(..))
 import Data.Typeable (Typeable)
 import Foreign
 import Foreign.C
+import GHC.IO.Exception
 import qualified System.IO.Unsafe as U
 
-#include <errno.h>
+#include "errno-posix.h"
 #include <windows.h>
 
 ##ifdef mingw32_HOST_OS
@@ -118,12 +113,12 @@ instance Show BOOL where
 
 -- | Return 'True' if the Windows @BOOL@ is true (i.e. non-zero).
 fromBOOL :: BOOL -> Bool
-fromBOOL (Bool n) = n /= 0
+fromBOOL (BOOL n) = n /= 0
 
 -- | Convert a Haskell boolean to a Windows @BOOL@.
 toBOOL :: Bool -> BOOL
-toBOOL False = #const FALSE
-toBOOL True  = #const TRUE
+toBOOL False = BOOL (#const FALSE)
+toBOOL True  = BOOL (#const TRUE)
 
 data GUID = GUID !Word32 !Word32 !Word32 !Word32
   deriving (Eq, Ord, Typeable)
@@ -237,9 +232,9 @@ getProcAddress hModule procName = do
     if ptr == nullFunPtr
       then do
         err <- getLastError
-        if err == e_ERROR_PROC_NOT_FOUND
+        if err == eERROR_PROC_NOT_FOUND
           then return Nothing
-          else throwWinError "getProcAddress" err
+          else throwErrCode "getProcAddress" err
       else return $ Just ptr
 
 -- | The module handle for @\"kernel32\.dll\"@
@@ -275,7 +270,7 @@ instance Show ErrCode where
 -- | Get the last system error, and throw it as a 'WinError' exception.
 throwGetLastError :: String -> IO a
 throwGetLastError loc =
-    getLastError >>= throwWinError loc
+    getLastError >>= throwErrCode loc
 
 -- | Convert a Windows error code to an exception, then throw it.
 --
@@ -291,11 +286,11 @@ errCodeToIOError :: String -> ErrCode -> IO IOError
 errCodeToIOError loc code = do
     let info = getErrCodeInfo code
         name = eiName info
-        errno@(Errno errno') = eiErrno info
+        Errno errno = eiErrno info
     msg <- getErrorMessage code >>= \m ->
            case m of
-               Nothing -> name
-               Just s  -> s ++ " (" ++ name ++ ")"
+               Nothing -> return name
+               Just s  -> return $ s ++ " (" ++ name ++ ")"
     -- TODO: Include Windows error code in the IOError.  Currently, the IOError
     -- record doesn't have a slot for it, only for errno.  We can't simply
     -- put a Windows error code in its place because Windows error codes and
@@ -306,7 +301,7 @@ errCodeToIOError loc code = do
         , ioe_type        = eiErrorType info
         , ioe_location    = loc
         , ioe_description = msg
-        , ioe_errno       = Just errno'
+        , ioe_errno       = Just errno
         , ioe_filename    = Nothing
         }
 
@@ -385,7 +380,7 @@ getErrCodeInfo code@(ErrCode n) =
         Nothing   -> ErrCodeInfo
                      { eiName      = "error code " ++ show n
                      , eiErrorType = OtherError
-                     , eiErrno     = (#const EOTHER)
+                     , eiErrno     = Errno (#const EOTHER)
                      }
 
 getErrCodeInfoMaybe :: ErrCode -> Maybe ErrCodeInfo
@@ -396,32 +391,43 @@ getErrCodeInfoMaybe (ErrCode n) = case n of
     -- The errno values were picked from "errno Constants"
     -- (http://msdn.microsoft.com/en-us/library/5814770t.aspx) and are somewhat
     -- arbitrary.  The IOErrorType values are based on the mapping from errno
-    -- to IOErrorType in Foreign.C.Error.errnoToIOError.
+    -- to IOErrorType in Foreign.C.Error.errnoToIOError.  We don't let
+    -- errnoToIOError do the conversion because:
+    --
+    --  * MinGW doesn't define several of these codes (we define some in
+    --    errno-posix.h ourselves).  This means, for example, that 'eTIMEDOUT'
+    --    will be converted to OtherError instead of TimeExpired, since the
+    --    base package detected that ETIMEDOUT was undefined during
+    --    configuration.
+    --
+    --  * We can decide what IOErrorType we want for each Windows error code,
+    --    rather than funneling every error code through the errno bottleneck
+    --    (though errno values tend to be more precise than IOErrorType).
     --
     -- TODO: merge the error codes from base/cbits/Win32Utils.c into this table.
-    (#const ERROR_SUCCESS)            {- 0 -}     = f "ERROR_SUCCESS"            OtherError           (#const 0)
-    (#const ERROR_INVALID_PARAMETER)  {- 87 -}    = f "ERROR_INVALID_PARAMETER"  InvalidArgument      (#const EINVAL)
-    (#const ERROR_SEM_TIMEOUT)        {- 121 -}   = f "ERROR_SEM_TIMEOUT"        TimeExpired          (#const ETIMEDOUT)
-    (#const ERROR_MOD_NOT_FOUND)      {- 126 -}   = f "ERROR_MOD_NOT_FOUND"      NoSuchThing          (#const ENOENT)
-    (#const ERROR_PROC_NOT_FOUND)     {- 127 -}   = f "ERROR_PROC_NOT_FOUND"     NoSuchThing          (#const ENOENT)
-    (#const WAIT_TIMEOUT)             {- 258 -}   = f "WAIT_TIMEOUT"             TimeExpired          (#const ETIMEDOUT)
-    (#const ERROR_OPERATION_ABORTED)  {- 995 -}   = f "ERROR_OPERATION_ABORTED"  Interrupted          (#const EINTR)
-    (#const ERROR_IO_PENDING)         {- 997 -}   = f "ERROR_IO_PENDING"         AlreadyExists        (#const EINPROGRESS)
-    (#const ERROR_NOT_FOUND)          {- 1168 -}  = f "ERROR_NOT_FOUND"          NoSuchThing          (#const ENOENT)
-    (#const ERROR_INVALID_NETNAME)    {- 1214 -}  = f "ERROR_INVALID_NETNAME"    InvalidArgument      (#const EINVAL)
-    (#const ERROR_CONNECTION_REFUSED) {- 1225 -}  = f "ERROR_CONNECTION_REFUSED" NoSuchThing          (#const ECONNREFUSED)
-    (#const WSAEINTR)                 {- 10004 -} = f "WSAEINTR"                 Interrupted          (#const EINTR)
-    (#const WSAEFAULT)                {- 10014 -} = f "WSAEFAULT"                OtherError           (#const EFAULT)
-    (#const WSAEINVAL)                {- 10022 -} = f "WSAEINVAL"                InvalidArgument      (#const EINVAL)
-    (#const WSAENOTSOCK)              {- 10038 -} = f "WSAENOTSOCK"              InvalidArgument      (#const ENOTSOCK)
-    (#const WSAEAFNOSUPPORT)          {- 10047 -} = f "WSAEAFNOSUPPORT"          UnsupportedOperation (#const EAFNOSUPPORT)
-    (#const WSAEADDRINUSE)            {- 10048 -} = f "WSAEADDRINUSE"            ResourceBusy         (#const EADDRINUSE)
-    (#const WSAEADDRNOTAVAIL)         {- 10049 -} = f "WSAEADDRNOTAVAIL"         UnsupportedOperation (#const EADDRNOTAVAIL)
-    (#const WSAECONNRESET)            {- 10054 -} = f "WSAECONNRESET"            ResourceVanished     (#const ECONNRESET)
-    (#const WSAEISCONN)               {- 10056 -} = f "WSAEISCONN"               AlreadyExists        (#const EISCONN)
-    (#const WSAENOTCONN)              {- 10057 -} = f "WSAENOTCONN"              InvalidArgument      (#const ENOTCONN)
-    (#const WSAETIMEDOUT)             {- 10060 -} = f "WSAETIMEDOUT"             TimeExpired          (#const ETIMEDOUT)
-    (#const WSANOTINITIALISED)        {- 10093 -} = f "WSANOTINITIALISED"        InvalidArgument      (#const EINVAL)
+    (#const ERROR_SUCCESS)            {- 0 -}     -> f "ERROR_SUCCESS"            OtherError           0
+    (#const ERROR_INVALID_PARAMETER)  {- 87 -}    -> f "ERROR_INVALID_PARAMETER"  InvalidArgument      (#const EINVAL)
+    (#const ERROR_SEM_TIMEOUT)        {- 121 -}   -> f "ERROR_SEM_TIMEOUT"        TimeExpired          (#const ETIMEDOUT)
+    (#const ERROR_MOD_NOT_FOUND)      {- 126 -}   -> f "ERROR_MOD_NOT_FOUND"      NoSuchThing          (#const ENOENT)
+    (#const ERROR_PROC_NOT_FOUND)     {- 127 -}   -> f "ERROR_PROC_NOT_FOUND"     NoSuchThing          (#const ENOENT)
+    (#const WAIT_TIMEOUT)             {- 258 -}   -> f "WAIT_TIMEOUT"             TimeExpired          (#const ETIMEDOUT)
+    (#const ERROR_OPERATION_ABORTED)  {- 995 -}   -> f "ERROR_OPERATION_ABORTED"  Interrupted          (#const EINTR)
+    (#const ERROR_IO_PENDING)         {- 997 -}   -> f "ERROR_IO_PENDING"         AlreadyExists        (#const EINPROGRESS)
+    (#const ERROR_NOT_FOUND)          {- 1168 -}  -> f "ERROR_NOT_FOUND"          NoSuchThing          (#const ENOENT)
+    (#const ERROR_INVALID_NETNAME)    {- 1214 -}  -> f "ERROR_INVALID_NETNAME"    InvalidArgument      (#const EINVAL)
+    (#const ERROR_CONNECTION_REFUSED) {- 1225 -}  -> f "ERROR_CONNECTION_REFUSED" NoSuchThing          (#const ECONNREFUSED)
+    (#const WSAEINTR)                 {- 10004 -} -> f "WSAEINTR"                 Interrupted          (#const EINTR)
+    (#const WSAEFAULT)                {- 10014 -} -> f "WSAEFAULT"                OtherError           (#const EFAULT)
+    (#const WSAEINVAL)                {- 10022 -} -> f "WSAEINVAL"                InvalidArgument      (#const EINVAL)
+    (#const WSAENOTSOCK)              {- 10038 -} -> f "WSAENOTSOCK"              InvalidArgument      (#const ENOTSOCK)
+    (#const WSAEAFNOSUPPORT)          {- 10047 -} -> f "WSAEAFNOSUPPORT"          UnsupportedOperation (#const EAFNOSUPPORT)
+    (#const WSAEADDRINUSE)            {- 10048 -} -> f "WSAEADDRINUSE"            ResourceBusy         (#const EADDRINUSE)
+    (#const WSAEADDRNOTAVAIL)         {- 10049 -} -> f "WSAEADDRNOTAVAIL"         UnsupportedOperation (#const EADDRNOTAVAIL)
+    (#const WSAECONNRESET)            {- 10054 -} -> f "WSAECONNRESET"            ResourceVanished     (#const ECONNRESET)
+    (#const WSAEISCONN)               {- 10056 -} -> f "WSAEISCONN"               AlreadyExists        (#const EISCONN)
+    (#const WSAENOTCONN)              {- 10057 -} -> f "WSAENOTCONN"              InvalidArgument      (#const ENOTCONN)
+    (#const WSAETIMEDOUT)             {- 10060 -} -> f "WSAETIMEDOUT"             TimeExpired          (#const ETIMEDOUT)
+    (#const WSANOTINITIALISED)        {- 10093 -} -> f "WSANOTINITIALISED"        InvalidArgument      (#const EINVAL)
 
     _ -> Nothing
   where
