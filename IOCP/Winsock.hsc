@@ -71,7 +71,7 @@ connect :: Handle a -> SockAddr -> Overlapped a -> IO IOStatus
 connect h addr ol = do
     ws <- loadWinsock
     withSockAddr addr $ \ptr len ->
-      checkPendingIf_ (== 0) "connect" $
+      checkPendingIf_ isFALSE "connect" $
       mswConnectEx ws (toSOCKET h) ptr len nullPtr 0 nullPtr (toLPOVERLAPPED ol)
 
 send :: Handle cv -> LPWSABUF -> Int -> Overlapped cv -> IO IOStatus

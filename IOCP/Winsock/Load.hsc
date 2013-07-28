@@ -82,7 +82,7 @@ loadWinsockPayload = do
         get dynamic guid = do
             m <- getExtensionFunc sock guid
             case m of
-                Nothing   -> throwWinError "loadWinsock" e_ERROR_PROC_NOT_FOUND
+                Nothing   -> throwErrCode "loadWinsock" eERROR_PROC_NOT_FOUND
                 Just fptr -> return $! dynamic fptr
     let getMaybe :: (FunPtr a -> a) -> GUID -> IO (Maybe a)
         getMaybe dynamic guid = do
@@ -114,9 +114,9 @@ getExtensionFunc sock guid =
       then Just <$> peek fptr_ptr
       else do
         err <- getLastError
-        if err == e_WSAEINVAL
+        if err == eWSAEINVAL
           then return Nothing
-          else throwWinError "getExtensionFunc" err
+          else throwErrCode "getExtensionFunc" err
 
 ------------------------------------------------------------------------
 -- mswsock.dll functions

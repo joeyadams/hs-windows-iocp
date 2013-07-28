@@ -57,7 +57,7 @@ closeHandle (Handle h) = closeHANDLE "closeHandle" h
 
 closeHANDLE :: String -> HANDLE -> IO ()
 closeHANDLE loc h =
-    failIf_ (== 0) loc $
+    failIf_ isFALSE loc $
     c_CloseHandle h
 
 -- | Allocate a new
@@ -112,16 +112,16 @@ getQueuedCompletionStatus cport timeout =
     b <- c_GetQueuedCompletionStatus cport pNumBytes pCompletionKey pOverlapped timeout
     err <- getLastError
     ol <- peek pOverlapped
-    if b /= 0 then do
+    if isTRUE b then do
         -- I/O succeeded (GetQueuedCompletionStatus returned TRUE)
         numBytes <- peek pNumBytes
         let !c = Completion{ cNumBytes = numBytes, cError = 0 }
         return $ Just (c, ol)
     else if ol == Overlapped nullPtr then
         -- GetQueuedCompletionStatus failed
-        if err == e_WAIT_TIMEOUT
+        if err == eWAIT_TIMEOUT
             then return Nothing
-            else throwWinError "getQueuedCompletionStatus" err
+            else throwErrCode "getQueuedCompletionStatus" err
     else do
         -- I/O failed
         numBytes <- peek pNumBytes
@@ -137,7 +137,7 @@ postQueuedCompletionStatusNB
     -> Overlapped a
     -> IO ()
 postQueuedCompletionStatusNB numBytes cport ol =
-    failIf_ (== 0) "postQueuedCompletionStatus" $
+    failIf_ isFALSE "postQueuedCompletionStatus" $
     c_PostQueuedCompletionStatus cport numBytes 0 ol
 
 postValue :: CompletionPort a -> a -> IO ()
@@ -164,7 +164,7 @@ postValue cport a = newOverlapped a >>= postQueuedCompletionStatus cport
 --    but operations on the same handle may not.
 cancelIo :: Handle a -> IO ()
 cancelIo (Handle h) =
-    failIf_ (== 0) "cancelIo" $
+    failIf_ isFALSE "cancelIo" $
     c_CancelIo h
 
 -- | Cancel pending I\/O on a given handle.  Return 'False' if nothing was
@@ -178,13 +178,13 @@ runCancelIoEx
     -> IO Bool
 runCancelIoEx (CancelIoEx f) (Handle h) mol = do
     b <- f h (maybe nullPtr toLPOVERLAPPED mol)
-    if b /= 0
+    if isTRUE b
       then return True
       else do
         err <- getLastError
-        if err == e_ERROR_NOT_FOUND
+        if err == eERROR_NOT_FOUND
           then return False
-          else throwWinError "CancelIoEx" err
+          else throwErrCode "CancelIoEx" err
 
 data IOStatus
   = Pending
@@ -203,7 +203,7 @@ checkPendingIf_ p loc act = do
     if p a
       then do
         err <- getLastError
-        if err == e_ERROR_IO_PENDING
+        if err == eERROR_IO_PENDING
             then return Pending
-            else throwWinError loc err
+            else throwErrCode loc err
       else return Done
