@@ -1,17 +1,17 @@
-name: windows-iocp
-version: 0.1
-synopsis: Playground for implementing interruptible I/O on Windows using completion ports
+name:               windows-iocp
+version:            0.1
+synopsis:           Scalable and interruptible network I/O for Windows
 -- description:
-homepage: https://github.com/joeyadams/hs-windows-iocp
-bug-reports: https://github.com/joeyadams/hs-windows-iocp/issues/new
-license: BSD3
-license-file: LICENSE
-author: Joey Adams
-maintainer: joeyadams3.14159@gmail.com
-copyright: Copyright (c) Joseph Adams 2013
-category: System
-build-type: Simple
-cabal-version: >= 1.14
+homepage:           https://github.com/joeyadams/hs-windows-iocp
+bug-reports:        https://github.com/joeyadams/hs-windows-iocp/issues/new
+license:            BSD3
+license-file:       LICENSE
+author:             Joey Adams
+maintainer:         joeyadams3.14159@gmail.com
+copyright:          Copyright (c) Joseph Adams 2013
+category:           System
+build-type:         Simple
+cabal-version:      >= 1.14
 
 extra-source-files: include/iocp.h
 
