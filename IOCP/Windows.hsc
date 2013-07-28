@@ -5,6 +5,12 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
+-- | Provides a similar set of definitions as "System.Win32.Types" or
+-- "GHC.Windows", with some improvements we need.  For example:
+--
+--  * 'throwErrCode' may be called from a different thread than that producing
+--    the error, allowing I\/O operations to throw exceptions that were
+--    delivered as completions to the I\/O manager thread.
 module IOCP.Windows (
     -- * Windows data types
     BOOL,
@@ -47,9 +53,17 @@ module IOCP.Windows (
     e_WSANOTINITIALISED,
     getLastError,
     throwGetLastError,
-    WinError(..),
-    throwWinError,
-    mkWinError,
+    throwErrCode,
+    errCodeToIOError,
+    getErrorMessage,
+
+    -- ** Error code constants
+    eERROR_PROC_NOT_FOUND,
+    eWAIT_TIMEOUT,
+    eERROR_IO_PENDING,
+    eERROR_NOT_FOUND,
+    eWSAEINVAL,
+    eWSANOTINITIALISED,
 
     -- ** Guards for system calls that might fail
     failIf,
@@ -67,6 +81,7 @@ import Foreign
 import Foreign.C
 import qualified System.IO.Unsafe as U
 
+#include <errno.h>
 #include <windows.h>
 
 ##ifdef mingw32_HOST_OS
@@ -246,111 +261,80 @@ class IsLPOVERLAPPED a where
     fromLPOVERLAPPED :: LPOVERLAPPED -> a
     toLPOVERLAPPED   :: a -> LPOVERLAPPED
 
+-- | A Windows error code, as returned by @GetLastError@.  Windows error codes
+-- are not the same as @errno@!  @errno@ is a compatibility shim provided by
+-- the Windows C runtime library, and has its own enumeration.
 newtype ErrCode = ErrCode DWORD
     deriving (Eq, Ord, Enum, Num, Real, Integral, Typeable)
 
+-- | Either the name of the error code (e.g. @\"WSAEINTR\"@), or something like
+-- @\"error code 12345\"@.
 instance Show ErrCode where
-    show (ErrCode n) = f n where
-        -- Add error codes here as needed.
-        f #{const ERROR_SUCCESS}            = "ERROR_SUCCESS"             -- 0
-        f #{const ERROR_INVALID_PARAMETER}  = "ERROR_INVALID_PARAMETER"   -- 87
-        f #{const ERROR_SEM_TIMEOUT}        = "ERROR_SEM_TIMEOUT"         -- 121
-        f #{const ERROR_MOD_NOT_FOUND}      = "ERROR_MOD_NOT_FOUND"       -- 126
-        f #{const ERROR_PROC_NOT_FOUND}     = "ERROR_PROC_NOT_FOUND"      -- 127
-        f #{const WAIT_TIMEOUT}             = "WAIT_TIMEOUT"              -- 258
-        f #{const ERROR_OPERATION_ABORTED}  = "ERROR_OPERATION_ABORTED"   -- 995
-        f #{const ERROR_IO_PENDING}         = "ERROR_IO_PENDING"          -- 997
-        f #{const ERROR_NOT_FOUND}          = "ERROR_NOT_FOUND"           -- 1168
-        f #{const ERROR_INVALID_NETNAME}    = "ERROR_INVALID_NETNAME"     -- 1214
-        f #{const ERROR_CONNECTION_REFUSED} = "ERROR_CONNECTION_REFUSED"  -- 1225
-        f #{const WSAEINTR}                 = "WSAEINTR"                  -- 10004
-        f #{const WSAEFAULT}                = "WSAEFAULT"                 -- 10014
-        f #{const WSAEINVAL}                = "WSAEINVAL"                 -- 10022
-        f #{const WSAENOTSOCK}              = "WSAENOTSOCK"               -- 10038
-        f #{const WSAEAFNOSUPPORT}          = "WSAEAFNOSUPPORT"           -- 10047
-        f #{const WSAEADDRINUSE}            = "WSAEADDRINUSE"             -- 10048
-        f #{const WSAEADDRNOTAVAIL}         = "WSAEADDRNOTAVAIL"          -- 10049
-        f #{const WSAECONNRESET}            = "WSAECONNRESET"             -- 10054
-        f #{const WSAEISCONN}               = "WSAEISCONN"                -- 10056
-        f #{const WSAENOTCONN}              = "WSAENOTCONN"               -- 10057
-        f #{const WSAETIMEDOUT}             = "WSAETIMEDOUT"              -- 10060
-        f #{const WSANOTINITIALISED}        = "WSANOTINITIALISED"         -- 10093
-        f _ = "error code " ++ show n
-
-e_ERROR_PROC_NOT_FOUND :: ErrCode
-e_ERROR_PROC_NOT_FOUND = #const ERROR_PROC_NOT_FOUND
-
-e_WAIT_TIMEOUT :: ErrCode
-e_WAIT_TIMEOUT = #const WAIT_TIMEOUT
-
--- | Same as @WSA_IO_PENDING@
-e_ERROR_IO_PENDING :: ErrCode
-e_ERROR_IO_PENDING = #const ERROR_IO_PENDING
-
-e_ERROR_NOT_FOUND :: ErrCode
-e_ERROR_NOT_FOUND = #const ERROR_NOT_FOUND
-
-e_WSAEINVAL :: ErrCode
-e_WSAEINVAL = #const WSAEINVAL
-
-e_WSANOTINITIALISED :: ErrCode
-e_WSANOTINITIALISED = #const WSANOTINITIALISED
-
-data WinError = WinError
-    { weCode      :: !ErrCode
-    , weMessage   :: String
-    , weLocation  :: String
-    }
-    deriving Typeable
-
-instance Show WinError where
-    show WinError{..} =
-        weLocation ++ ": " ++ weMessage ++ " (" ++ show weCode ++ ")"
-
-instance Exception WinError
-
-throwWinError :: String -> ErrCode -> IO a
-throwWinError loc code = mkWinError loc code >>= throwIO
+    show = eiName . getErrCodeInfo
 
 -- | Get the last system error, and throw it as a 'WinError' exception.
 throwGetLastError :: String -> IO a
 throwGetLastError loc =
     getLastError >>= throwWinError loc
 
-mkWinError :: String -> ErrCode -> IO WinError
-mkWinError loc code = do
-    msg <- getErrorMessage code
-    return $! WinError
-        { weCode     = code
-        , weMessage  = msg
-        , weLocation = loc
+-- | Convert a Windows error code to an exception, then throw it.
+--
+-- Note: "System.Win32.Types" has 'System.Win32.Types.failWith', but it expects
+-- the error code we are throwing to be the most recent error in the current
+-- thread.  'throwErrCode' does not make this assumption.
+throwErrCode :: String -> ErrCode -> IO a
+throwErrCode loc code =
+    errCodeToIOError loc code >>= throwIO
+
+-- | Convert a Windows error code to an exception.
+errCodeToIOError :: String -> ErrCode -> IO IOError
+errCodeToIOError loc code = do
+    let info = getErrCodeInfo code
+        name = eiName info
+        errno@(Errno errno') = eiErrno info
+    msg <- getErrorMessage code >>= \m ->
+           case m of
+               Nothing -> name
+               Just s  -> s ++ " (" ++ name ++ ")"
+    -- TODO: Include Windows error code in the IOError.  Currently, the IOError
+    -- record doesn't have a slot for it, only for errno.  We can't simply
+    -- put a Windows error code in its place because Windows error codes and
+    -- errno codes are incompatible, and some existing applications extract
+    -- ioe_errno and expect it to be an errno value.
+    return IOError
+        { ioe_handle      = Nothing
+        , ioe_type        = eiErrorType info
+        , ioe_location    = loc
+        , ioe_description = msg
+        , ioe_errno       = Just errno'
+        , ioe_filename    = Nothing
         }
 
 -- | Get a string describing a Windows error code.  This uses the
 -- @FormatMessage@ system call.
-getErrorMessage :: ErrCode -> IO String
+getErrorMessage :: ErrCode -> IO (Maybe String)
 getErrorMessage code =
-    -- Mask exceptions to avoid leaking string allocated by FormatMessageW.
-    mask_ $ do
-        -- Original code from System.Win32.Types.failWith
-        c_msg <- c_getErrorMessage code
-        if c_msg == nullPtr
-          then return "(could not retrieve error message)"
-          else do msg <- peekCWString c_msg
-                  -- We ignore failure of freeing c_msg, given we're already failing
-                  _ <- localFree c_msg
-                  let msg' = reverse $ dropWhile isSpace $ reverse msg -- drop trailing \n
-                  return msg'
+  -- Mask exceptions to avoid leaking string allocated by FormatMessageW.
+  mask_ $ do
+    -- Original code from System.Win32.Types.failWith
+    c_msg <- c_getErrorMessage code
+    if c_msg == nullPtr
+      then return Nothing
+      else do msg <- peekCWString c_msg
+              -- We ignore failure of freeing c_msg, given we're already failing
+              _ <- localFree c_msg
+              let msg' = reverse $ dropWhile isSpace $ reverse msg -- drop trailing \n
+              return $ Just msg'
+
+-- | Get the last system error produced in the current thread.
+foreign import WINDOWS_CCONV unsafe "windows.h GetLastError"
+    getLastError :: IO ErrCode
 
 foreign import ccall unsafe "iocp_getErrorMessage" -- in iocp.c
     c_getErrorMessage :: ErrCode -> IO LPWSTR
 
 foreign import WINDOWS_CCONV unsafe "windows.h LocalFree"
     localFree :: Ptr a -> IO (Ptr a)
-
--- | Get the last system error produced in the current thread.
-foreign import WINDOWS_CCONV unsafe "windows.h GetLastError"
-    getLastError :: IO ErrCode
 
 failIf :: (a -> Bool) -> String -> IO a -> IO a
 failIf p wh act = do
@@ -361,3 +345,89 @@ failIf_ :: (a -> Bool) -> String -> IO a -> IO ()
 failIf_ p wh act = do
     v <- act
     if p v then throwGetLastError wh else return ()
+
+------------------------------------------------------------------------
+-- Error code constants
+
+eERROR_PROC_NOT_FOUND :: ErrCode
+eERROR_PROC_NOT_FOUND = #const ERROR_PROC_NOT_FOUND
+
+eWAIT_TIMEOUT :: ErrCode
+eWAIT_TIMEOUT = #const WAIT_TIMEOUT
+
+-- | Same as @WSA_IO_PENDING@
+eERROR_IO_PENDING :: ErrCode
+eERROR_IO_PENDING = #const ERROR_IO_PENDING
+
+eERROR_NOT_FOUND :: ErrCode
+eERROR_NOT_FOUND = #const ERROR_NOT_FOUND
+
+eWSAEINVAL :: ErrCode
+eWSAEINVAL = #const WSAEINVAL
+
+eWSANOTINITIALISED :: ErrCode
+eWSANOTINITIALISED = #const WSANOTINITIALISED
+
+------------------------------------------------------------------------
+-- Error code table
+
+data ErrCodeInfo = ErrCodeInfo
+    { eiName      :: !String
+    , eiErrorType :: !IOErrorType
+    , eiErrno     :: !Errno
+    }
+
+-- | Look up information about a Windows error code.
+getErrCodeInfo :: ErrCode -> ErrCodeInfo
+getErrCodeInfo code@(ErrCode n) =
+    case getErrCodeInfoMaybe code of
+        Just info -> info
+        Nothing   -> ErrCodeInfo
+                     { eiName      = "error code " ++ show n
+                     , eiErrorType = OtherError
+                     , eiErrno     = (#const EOTHER)
+                     }
+
+getErrCodeInfoMaybe :: ErrCode -> Maybe ErrCodeInfo
+getErrCodeInfoMaybe (ErrCode n) = case n of
+    -- Error codes are added to this table as they are encountered.
+    -- See http://msdn.microsoft.com/en-us/library/windows/desktop/ms681381(v=vs.85).aspx
+    --
+    -- The errno values were picked from "errno Constants"
+    -- (http://msdn.microsoft.com/en-us/library/5814770t.aspx) and are somewhat
+    -- arbitrary.  The IOErrorType values are based on the mapping from errno
+    -- to IOErrorType in Foreign.C.Error.errnoToIOError.
+    --
+    -- TODO: merge the error codes from base/cbits/Win32Utils.c into this table.
+    (#const ERROR_SUCCESS)            {- 0 -}     = f "ERROR_SUCCESS"            OtherError           (#const 0)
+    (#const ERROR_INVALID_PARAMETER)  {- 87 -}    = f "ERROR_INVALID_PARAMETER"  InvalidArgument      (#const EINVAL)
+    (#const ERROR_SEM_TIMEOUT)        {- 121 -}   = f "ERROR_SEM_TIMEOUT"        TimeExpired          (#const ETIMEDOUT)
+    (#const ERROR_MOD_NOT_FOUND)      {- 126 -}   = f "ERROR_MOD_NOT_FOUND"      NoSuchThing          (#const ENOENT)
+    (#const ERROR_PROC_NOT_FOUND)     {- 127 -}   = f "ERROR_PROC_NOT_FOUND"     NoSuchThing          (#const ENOENT)
+    (#const WAIT_TIMEOUT)             {- 258 -}   = f "WAIT_TIMEOUT"             TimeExpired          (#const ETIMEDOUT)
+    (#const ERROR_OPERATION_ABORTED)  {- 995 -}   = f "ERROR_OPERATION_ABORTED"  Interrupted          (#const EINTR)
+    (#const ERROR_IO_PENDING)         {- 997 -}   = f "ERROR_IO_PENDING"         AlreadyExists        (#const EINPROGRESS)
+    (#const ERROR_NOT_FOUND)          {- 1168 -}  = f "ERROR_NOT_FOUND"          NoSuchThing          (#const ENOENT)
+    (#const ERROR_INVALID_NETNAME)    {- 1214 -}  = f "ERROR_INVALID_NETNAME"    InvalidArgument      (#const EINVAL)
+    (#const ERROR_CONNECTION_REFUSED) {- 1225 -}  = f "ERROR_CONNECTION_REFUSED" NoSuchThing          (#const ECONNREFUSED)
+    (#const WSAEINTR)                 {- 10004 -} = f "WSAEINTR"                 Interrupted          (#const EINTR)
+    (#const WSAEFAULT)                {- 10014 -} = f "WSAEFAULT"                OtherError           (#const EFAULT)
+    (#const WSAEINVAL)                {- 10022 -} = f "WSAEINVAL"                InvalidArgument      (#const EINVAL)
+    (#const WSAENOTSOCK)              {- 10038 -} = f "WSAENOTSOCK"              InvalidArgument      (#const ENOTSOCK)
+    (#const WSAEAFNOSUPPORT)          {- 10047 -} = f "WSAEAFNOSUPPORT"          UnsupportedOperation (#const EAFNOSUPPORT)
+    (#const WSAEADDRINUSE)            {- 10048 -} = f "WSAEADDRINUSE"            ResourceBusy         (#const EADDRINUSE)
+    (#const WSAEADDRNOTAVAIL)         {- 10049 -} = f "WSAEADDRNOTAVAIL"         UnsupportedOperation (#const EADDRNOTAVAIL)
+    (#const WSAECONNRESET)            {- 10054 -} = f "WSAECONNRESET"            ResourceVanished     (#const ECONNRESET)
+    (#const WSAEISCONN)               {- 10056 -} = f "WSAEISCONN"               AlreadyExists        (#const EISCONN)
+    (#const WSAENOTCONN)              {- 10057 -} = f "WSAENOTCONN"              InvalidArgument      (#const ENOTCONN)
+    (#const WSAETIMEDOUT)             {- 10060 -} = f "WSAETIMEDOUT"             TimeExpired          (#const ETIMEDOUT)
+    (#const WSANOTINITIALISED)        {- 10093 -} = f "WSANOTINITIALISED"        InvalidArgument      (#const EINVAL)
+
+    _ -> Nothing
+  where
+    f name etype errno = Just $!
+        ErrCodeInfo
+        { eiName      = name
+        , eiErrorType = etype
+        , eiErrno     = Errno errno
+        }
