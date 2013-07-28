@@ -13,9 +13,10 @@
 --    delivered as completions to the I\/O manager thread.
 module IOCP.Windows (
     -- * Windows data types
-    BOOL,
-    fromBOOL,
+    BOOL(..),
     toBOOL,
+    isTRUE,
+    isFALSE,
     DWORD,
     HANDLE,
     LPDWORD,
@@ -109,16 +110,20 @@ newtype BOOL = BOOL #type BOOL
     deriving (Eq, Typeable)
 
 instance Show BOOL where
-    show b = if fromBOOL b then "TRUE" else "FALSE"
-
--- | Return 'True' if the Windows @BOOL@ is true (i.e. non-zero).
-fromBOOL :: BOOL -> Bool
-fromBOOL (BOOL n) = n /= 0
+    show b = if isTRUE b then "TRUE" else "FALSE"
 
 -- | Convert a Haskell boolean to a Windows @BOOL@.
 toBOOL :: Bool -> BOOL
 toBOOL False = BOOL (#const FALSE)
 toBOOL True  = BOOL (#const TRUE)
+
+-- | Return 'True' if the Windows @BOOL@ is true (i.e. non-zero).
+isTRUE :: BOOL -> Bool
+isTRUE (BOOL n) = n /= 0
+
+-- | Return 'True' if the Windows @BOOL@ is false (i.e. equals zero).
+isFALSE :: BOOL -> Bool
+isFALSE (BOOL n) = n == 0
 
 data GUID = GUID !Word32 !Word32 !Word32 !Word32
   deriving (Eq, Ord, Typeable)
