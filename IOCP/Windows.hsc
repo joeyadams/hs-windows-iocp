@@ -29,6 +29,7 @@ module IOCP.Windows (
     GUID(..),
     OVERLAPPED(..),
     LPOVERLAPPED,
+    pokeOffset,
 
     -- * Constants
     iNFINITE,
@@ -211,6 +212,12 @@ instance Storable OVERLAPPED where
         (#poke OVERLAPPED, hEvent)       p olEvent
 
 type LPOVERLAPPED = Ptr OVERLAPPED
+
+-- | Set the Offset\/OffsetHigh members of an @OVERLAPPED@ structure.
+pokeOffset :: LPOVERLAPPED -> Word64 -> IO ()
+pokeOffset p offset = do
+    (#poke OVERLAPPED, Offset)     p (offset .>>.  0 :: DWORD)
+    (#poke OVERLAPPED, OffsetHigh) p (offset .>>. 32 :: DWORD)
 
 newtype HMODULE = HMODULE HANDLE
   deriving (Eq, Show, Typeable)
