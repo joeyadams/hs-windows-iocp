@@ -80,21 +80,28 @@ newOverlappedWithOffset offset ctx = do
                         }
     ptr  <- malloc
     sptr <- newStablePtr ctx
-    poke ptr $! OverlappedRec ol sptr
+    poke ptr $! OverlappedRec ol sptr (toBOOL True)
     return (Overlapped ptr)
 
 -- | Retrieve the context value passed to 'newOverlapped'.
 peekOverlapped :: Overlapped a -> IO a
-peekOverlapped ol =
+peekOverlapped ol = do
+    True <- getOverlappedAlive ol
     peekOverlappedStablePtr ol >>= deRefStablePtr
 
 -- | Free an 'Overlapped'.  This must be called exactly once for every
 -- 'Overlapped' that is created, and must not be called if the I\/O operation
 -- is still pending.
 freeOverlapped :: Overlapped a -> IO ()
-freeOverlapped ol@(Overlapped ptr) = do
+freeOverlapped ol@(Overlapped _ptr) = do
+    True <- getOverlappedAlive ol
+    setOverlappedAlive ol False
     peekOverlappedStablePtr ol >>= freeStablePtr
-    free ptr
+
+    --   TODO: actually free the OverlappedRec object.  For now, we just mark
+    --   it dead so we can check for spurious completion notifications (MSDN
+    --   isn't clear when I\/O produces a completion and when it doesn't).
+    -- free ptr
 
 -- | Dequeue a completion packet.
 --

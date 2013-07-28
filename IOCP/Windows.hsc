@@ -108,7 +108,7 @@ type ULONG_PTR  = #type ULONG_PTR
 -- Note: "GHC.Windows" and "System.Win32.Types" incorrectly use 'Bool' to
 -- represent this.
 newtype BOOL = BOOL #type BOOL
-    deriving (Eq, Typeable)
+    deriving (Eq, Storable, Typeable)
 
 instance Show BOOL where
     show b = if isTRUE b then "TRUE" else "FALSE"

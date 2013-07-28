@@ -4,4 +4,5 @@
 typedef struct _OverlappedRec {
     OVERLAPPED  ol;
     HsStablePtr sptr;
+    BOOL        alive;
 } OverlappedRec;
