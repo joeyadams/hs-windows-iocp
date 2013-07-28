@@ -8,6 +8,8 @@
 module IOCP.Windows (
     -- * Windows data types
     BOOL,
+    fromBOOL,
+    toBOOL,
     DWORD,
     HANDLE,
     LPDWORD,
@@ -79,7 +81,6 @@ import qualified System.IO.Unsafe as U
 
 #let alignment t = "%lu", (unsigned long)offsetof(struct {char x__; t (y__); }, y__)
 
-type BOOL       = #type BOOL
 type DWORD      = #type DWORD
 type HANDLE     = Ptr ()
 type LPDWORD    = Ptr DWORD
@@ -89,6 +90,25 @@ type PVOID      = Ptr ()
 type LPSTR      = CString
 type LPWSTR     = CWString
 type ULONG_PTR  = #type ULONG_PTR
+
+-- | The Windows @BOOL@ type.  Non-zero means true, and zero means false.
+--
+-- Note: "GHC.Windows" and "System.Win32.Types" incorrectly use 'Bool' to
+-- represent this.
+newtype BOOL = BOOL #type BOOL
+    deriving (Eq, Typeable)
+
+instance Show BOOL where
+    show b = if fromBOOL b then "TRUE" else "FALSE"
+
+-- | Return 'True' if the Windows @BOOL@ is true (i.e. non-zero).
+fromBOOL :: BOOL -> Bool
+fromBOOL (Bool n) = n /= 0
+
+-- | Convert a Haskell boolean to a Windows @BOOL@.
+toBOOL :: Bool -> BOOL
+toBOOL False = #const FALSE
+toBOOL True  = #const TRUE
 
 data GUID = GUID !Word32 !Word32 !Word32 !Word32
   deriving (Eq, Ord, Typeable)
