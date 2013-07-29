@@ -31,6 +31,17 @@ associate h = do
     return ()
 
 -- | Wrap a system call that supports overlapped I\/O.
+--
+-- Allocate temporary buffers /outside/ of 'withOverlapped'.  The callback
+-- returns when the I\/O request is put in, not when the I\/O is done.
+--
+-- 'withOverlapped' will wait until the OS sends a completion packet.
+-- If 'withOverlapped' is interrupted with an asynchronous exception, it will
+-- interrupt the I\/O with @CancelIo@ or @CancelIoEx@, but continue waiting for
+-- a completion packet.  If the OS doesn't deliver one even after cancellation
+-- (e.g. due to a bad driver), then 'withOverlapped' will hang uninterruptibly.
+-- This is by design, so temporary resources (e.g. 'Foreign.Marshal.alloca')
+-- will remain valid until the OS is done with them.
 withOverlapped
     :: String
        -- ^ Name of calling function (used in error messages).
