@@ -36,10 +36,7 @@ main = withSocketsDo $ do
     localhost <- inet_addr "127.0.0.1"
     sock <- socket AF_INET Stream defaultProtocol
 
-    bind sock $ SockAddrInet aNY_PORT iNADDR_ANY
-    myAddr <- getSocketName sock
-    putStrLn $ "client: bound myself to " ++ show myAddr ++ "; connecting to google.com:1234"
-
+    putStrLn $ "client: connecting to google.com:1234"
     timeout 2000000 (connect sock $ SockAddrInet 1234 google)
       >>= \m -> case m of
           Nothing -> do
