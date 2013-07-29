@@ -1,7 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-import IOCP.Bindings
 import IOCP.Windows
-import IOCP.Winsock (initWinsock)
 
 import Data.Word
 import Foreign
@@ -42,16 +40,10 @@ testMisc :: IO ()
 testMisc = do
     True <- return $ sizeOf (undefined :: ULONG_PTR)
                   == sizeOf (undefined :: WordPtr)
-    let oSize   = sizeOf    (undefined :: OVERLAPPED)
-        spSize  = sizeOf    (undefined :: StablePtr a)
-        spAlign = alignment (undefined :: StablePtr a)
-    True <- return $ oSize `mod` spAlign == 0
-    True <- return $ oSize + spSize == sizeOf (undefined :: OverlappedRec a)
     return ()
 
 main :: IO ()
 main = do
-    _ws <- initWinsock
     testGUID
     testMisc
     putStrLn "All tests passed!"
