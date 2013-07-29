@@ -20,7 +20,7 @@ import Foreign.C
 import GHC.IO.Exception
 import Network.Socket hiding (socket, connect)
 import qualified Network.Socket as NS
-import Network.Socket.Internal (withSockAddr)
+import Network.Socket.Internal (withSockAddr, peekSockAddr)
 
 -- | Create a 'Socket' that can be used with the I\/O functions in this
 -- module.  This calls 'NS.socket' followed by 'associate'.
@@ -78,6 +78,40 @@ rawConnect sock addr = do
     withSockAddr addr $ \ptr len ->
       withOverlapped_ "connect" sock isFALSE $
         mswConnectEx sock ptr (fromIntegral len) nullPtr 0 nullPtr
+    -- TODO: setsockopt(SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT)
+
+-- | Call @AcceptEx@, which returns both the local and remote addresses.
+rawAccept :: SOCKET -- ^ Socket that 'listen' was called on
+          -> SOCKET -- ^ Socket that will be used to talk to the server
+          -> Int    -- ^ Local address maximum length
+          -> Int    -- ^ Remote address maximum length
+          -> IO (SockAddr, SockAddr)
+rawAccept listenSock acceptSock localAddrLen remoteAddrLen = do
+    Mswsock{..} <- getMswsock
+    allocaBytes (localAddrLen + remoteAddrLen + 32) $ \buf ->
+      with nullPtr $ \localAddrPtr ->
+      with nullPtr $ \remoteAddrPtr ->
+      with (fromIntegral localAddrLen) $ \localAddrLenPtr ->
+      with (fromIntegral remoteAddrLen) $ \remoteAddrLenPtr -> do
+          withOverlapped_ "accept" listenSock isFALSE $
+              mswAcceptEx listenSock acceptSock buf
+                          0 (fi $ localAddrLen + 16) (fi $ remoteAddrLen + 16)
+                          nullPtr
+          mswGetAcceptExSockaddrs buf
+              0 (fi $ localAddrLen + 16) (fi $ remoteAddrLen + 16)
+              localAddrPtr localAddrLenPtr
+              remoteAddrPtr remoteAddrLenPtr
+          localAddr <- peek localAddrPtr >>= peekSockAddr
+          remoteAddr <- peek remoteAddrPtr >>= peekSockAddr
+          return (localAddr, remoteAddr)
+      -- TODO: setsockopt(SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT)
+
+fi :: (Integral a, Num b) => a -> b
+fi = fromIntegral
+{-# INLINE fi #-}
+
+------------------------------------------------------------------------
+-- withOverlapped wrappers for SOCKET
 
 withOverlapped :: String -> SOCKET -> (a -> Bool) -> (LPOVERLAPPED -> IO a) -> IO Completion
 withOverlapped loc sock = M.withOverlapped loc (toHANDLE sock)
