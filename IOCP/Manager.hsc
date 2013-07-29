@@ -56,7 +56,7 @@ withOverlapped loc handle startCB = do
             -- exception will be propagated.  That's what we want.
         takeMVar mv `onException` do
             _ <- runCancelIoEx mgrCancelIoEx (Handle handle) (Just ol)
-            -- *Do not* let 'withOverlapped' finish without waiting for
+            -- DO NOT let 'withOverlapped' finish without waiting for
             -- completion delivery.  Otherwise, our 'allocaOverlapped' will
             -- free the overlapped before it is done being used, and allocas
             -- above us may release resources being used by the pending I/O.
