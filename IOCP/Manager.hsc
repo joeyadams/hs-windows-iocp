@@ -11,7 +11,7 @@ module IOCP.Manager (
     Completion(..),
 ) where
 
-import IOCP.CompletionPort hiding (associate)
+import IOCP.CompletionPort hiding (associate, checkPendingIf_)
 import qualified IOCP.CompletionPort as CP
 import IOCP.Windows
 
@@ -38,20 +38,31 @@ withOverlapped
        -- ^ Handle to perform I\/O on.  It must have been 'associate'd with the
        --   I\/O manager, and must be the same 'HANDLE' the start callback
        --   passes to its system call.
-    -> (LPOVERLAPPED -> IO ())
-       -- ^ Start callback.  If this returns successfully, completion will be
-       --   signaled through the completion port mechanism.  If this throws an
-       --   exception, it means an error occurred and no completion will
-       --   be queued.
+    -> (a -> Bool)
+       -- ^ Predicate that returns 'True' when the start callback's system
+       --   call reports an error (including @ERROR_IO_PENDING@).  This is
+       --   usually 'isFALSE' for functions returning a 'BOOL', and @(/= 0)@
+       --   for functions returning an @int@.
+    -> (LPOVERLAPPED -> IO a)
+       -- ^ Start callback.  This should wrap a Windows system call.
+       --   The call is expected to queue a completion packet in one of the
+       --   following cases:
+       --
+       --    * The call succeeds (the predicate returns 'False').
+       --
+       --    * The call \"fails\" with @ERROR_IO_PENDING@.
+       --
+       --   In any other case, the call must /not/ queue a completion packet,
+       --   since the @OVERLAPPED@ will be freed immediately.
     -> IO Completion
-withOverlapped loc handle startCB = do
+withOverlapped loc handle isErr startCB = do
     Manager{..} <- getManager loc
     mv <- newEmptyMVar
     -- Use mask_ so exception won't pop up between start callback and
     -- our exception handler.  mask_ does not prevent takeMVar from being
     -- interrupted, since takeMVar is an interruptible operation.
     mask_ $ allocaOverlapped (putMVar mv) $ \ol -> do
-        startCB (toLPOVERLAPPED ol)
+        checkPendingIf_ isErr loc $ startCB (toLPOVERLAPPED ol)
             -- If start callback fails, the Overlapped will be freed and the
             -- exception will be propagated.  That's what we want.
         takeMVar mv `onException` do
@@ -61,6 +72,23 @@ withOverlapped loc handle startCB = do
             -- free the overlapped before it is done being used, and allocas
             -- above us may release resources being used by the pending I/O.
             uninterruptibleMask_ $ takeMVar mv
+
+-- | Like 'failIf_', but if the action fails with @ERROR_IO_PENDING@,
+-- return successfully.
+checkPendingIf_
+    :: (a -> Bool) -- ^ Predicate returning 'True' on \"failure\"
+    -> String
+    -> IO a
+    -> IO ()
+checkPendingIf_ p loc act = do
+    a <- act
+    if p a
+      then do
+        err <- getLastError
+        if err == eERROR_IO_PENDING
+            then return ()
+            else throwErrCode loc err
+      else return ()
 
 data Manager = Manager
     { mgrPort       :: !(CompletionPort (Completion -> IO ()))
