@@ -59,8 +59,11 @@ withOverlapped :: String -> SOCKET -> (a -> Bool) -> (LPOVERLAPPED -> IO a) -> I
 withOverlapped loc sock = M.withOverlapped loc (toHANDLE sock)
 
 withOverlapped_ :: String -> SOCKET -> (a -> Bool) -> (LPOVERLAPPED -> IO a) -> IO ()
-withOverlapped_ loc sock p s =
-    failIf_ ((/= 0) . cError) loc $ withOverlapped loc sock p s
+withOverlapped_ loc sock p s = do
+    Completion{..} <- withOverlapped loc sock p s
+    if cError /= 0
+      then throwErrCode loc cError
+      else return ()
 
 ------------------------------------------------------------------------
 -- Socket record accessors
