@@ -10,10 +10,9 @@ module IOCP.CompletionPort (
     associate,
     closeHandle,
     newOverlapped,
-    newOverlappedWithOffset,
+    freeOverlapped,
     allocaOverlapped,
     peekOverlapped,
-    freeOverlapped,
     getQueuedCompletionStatus,
     iNFINITE,
     postQueuedCompletionStatus,
@@ -36,7 +35,7 @@ module IOCP.CompletionPort (
 import IOCP.Windows
 
 import Control.Applicative ((<$>))
-import Control.Exception (bracket)
+import Control.Exception (bracket, finally)
 import Foreign
 
 #include "iocp.h"
@@ -79,50 +78,38 @@ closeHANDLE loc h =
 -- <http://msdn.microsoft.com/en-us/library/windows/desktop/ms684342%28v=vs.85%29.aspx OVERLAPPED>
 -- structure, attaching the given piggyback value to it.  The resulting
 -- pointer may be passed to a system call that takes an @LPOVERLAPPED@,
--- provided the @Handle@ was associated with a 'CompletionPort' with the
+-- provided the @HANDLE@ was associated with a 'CompletionPort' with the
 -- same type @a@.
 newOverlapped :: a -> IO (Overlapped a)
-newOverlapped = newOverlappedWithOffset 0
+newOverlapped ctx = do
+    sptr  <- newStablePtr ctx
+    olptr <- new (mkOverlappedRec sptr)
+    return (Overlapped olptr)
 
--- | Like 'newOverlapped', but specify a value for the Offset/OffsetHigh fields
--- of the @OVERLAPPED@ structure.
-newOverlappedWithOffset :: Word64 -> a -> IO (Overlapped a)
-newOverlappedWithOffset offset ctx = do
-    let !ol = OVERLAPPED{ olInternal     = 0
-                        , olInternalHigh = 0
-                        , olOffset       = offset
-                        , olEvent        = nullPtr
-                        }
-    ptr  <- malloc
-    sptr <- newStablePtr ctx
-    poke ptr $! OverlappedRec ol sptr (toBOOL True)
-    return (Overlapped ptr)
+-- | Free an 'Overlapped' allocated with 'newOverlapped'.
+freeOverlapped :: Overlapped a -> IO ()
+freeOverlapped ol@(Overlapped ptr) = do
+    True <- getOverlappedAlive ol
+    setOverlappedAlive ol False
+    peekOverlappedStablePtr ol >>= freeStablePtr
+    free ptr
 
--- | Allocate an 'Overlapped', then free it after the inner
+-- | Allocate a new @OVERLAPPED@, and free it after the inner
 -- computation finishes.
 allocaOverlapped :: a -> (Overlapped a -> IO b) -> IO b
-allocaOverlapped a = bracket (newOverlapped a) freeOverlapped
--- TODO: use alloca instead of malloc and free.
+allocaOverlapped ctx body =
+    bracket (newStablePtr ctx) freeStablePtr $ \sptr ->
+    with (mkOverlappedRec sptr) $ \olptr -> do
+        let ol = Overlapped olptr
+        body ol `finally` do
+            True <- getOverlappedAlive ol
+            setOverlappedAlive ol False
 
 -- | Retrieve the context value passed to 'newOverlapped'.
 peekOverlapped :: Overlapped a -> IO a
 peekOverlapped ol = do
     True <- getOverlappedAlive ol
     peekOverlappedStablePtr ol >>= deRefStablePtr
-
--- | Free an 'Overlapped'.  This must be called exactly once for every
--- 'Overlapped' that is created, and must not be called if the I\/O operation
--- is still pending.
-freeOverlapped :: Overlapped a -> IO ()
-freeOverlapped ol@(Overlapped _ptr) = do
-    True <- getOverlappedAlive ol
-    setOverlappedAlive ol False
-    peekOverlappedStablePtr ol >>= freeStablePtr
-
-    --   TODO: actually free the OverlappedRec object.  For now, we just mark
-    --   it dead so we can check for spurious completion notifications (MSDN
-    --   isn't clear when I\/O produces a completion and when it doesn't).
-    -- free ptr
 
 -- | Dequeue a completion packet.
 --
@@ -282,6 +269,14 @@ data OverlappedRec a = OverlappedRec
       --   completion delivery when we didn't expect it.
     }
     deriving Eq
+
+mkOverlappedRec :: StablePtr a -> OverlappedRec a
+mkOverlappedRec sptr =
+    OverlappedRec
+    { orOverlapped = OVERLAPPED 0 0 0 nullPtr
+    , orContext    = sptr
+    , orAlive      = toBOOL True
+    }
 
 instance Storable (OverlappedRec a) where
     sizeOf    _ = #{size      OverlappedRec}
