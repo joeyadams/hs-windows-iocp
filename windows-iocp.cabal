@@ -22,7 +22,6 @@ source-repository head
 library
     exposed-modules:
         Network.Socket.Windows
-        IOCP.Bindings
         IOCP.CompletionPort
         IOCP.Manager
         IOCP.Mswsock
