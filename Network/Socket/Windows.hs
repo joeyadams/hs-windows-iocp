@@ -13,8 +13,10 @@ import IOCP.Windows
 import IOCP.Winsock.Types (SOCKET(..))
 
 import Control.Concurrent.MVar
+import Control.Exception
 import Foreign
 import Foreign.C
+import GHC.IO.Exception
 import Network.Socket hiding (socket, connect)
 import qualified Network.Socket as NS
 import Network.Socket.Internal (withSockAddr)
@@ -39,10 +41,29 @@ connect :: Socket -> SockAddr -> IO ()
 connect sock addr =
     modifyMVar_ (sockStatus sock) $ \status ->
     case status of
-        NotConnected -> go -- TODO: Implement the implicit bind step.
+        NotConnected -> bindAnyPort >> go
         Bound -> go
         _ -> fail $ "connect: can't peform connect on socket in status " ++ show status
   where
+    -- ConnectEx() requires the socket to be bound to a local address already,
+    -- Try to emulate regular connect(), which does an implicit bind().
+    --
+    -- TODO: Test the AF_INET6 case.
+    bindAnyPort =
+      case sockFamily sock of
+          AF_INET  -> bind sock $ SockAddrInet aNY_PORT iNADDR_ANY
+          AF_INET6 -> bind sock $ SockAddrInet6 aNY_PORT 0 iN6ADDR_ANY 0
+          -- Don't know how to perform implicit bind for other
+          -- address families.
+          family -> throwIO IOError
+               { ioe_handle      = Nothing
+               , ioe_type        = UnsupportedOperation
+               , ioe_location    = "connect"
+               , ioe_description = "address family " ++ show family ++ " not supported"
+               , ioe_errno       = Nothing
+               , ioe_filename    = Nothing
+               }
+
     go = do
         rawConnect (sockSOCKET sock) addr
         return Connected
@@ -76,6 +97,9 @@ sockSOCKET = SOCKET . fromIntegral . sockFd
 
 sockHANDLE :: Socket -> HANDLE
 sockHANDLE = wordPtrToPtr . fromIntegral . sockFd
+
+sockFamily :: Socket -> Family
+sockFamily (MkSocket _fd family _stype _protocol _status) = family
 
 sockStatus :: Socket -> MVar SocketStatus
 sockStatus (MkSocket _fd _family _stype _protocol status) = status
