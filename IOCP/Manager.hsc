@@ -1,5 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE RecordWildCards #-}
+-- | I\/O manager access.  Use 'withOverlapped' to wrap system calls that
+-- support overlapped I\/O (e.g. @ReadFile@).
 module IOCP.Manager (
     associate,
     withOverlapped,
