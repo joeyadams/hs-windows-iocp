@@ -1,6 +1,6 @@
 name:               windows-iocp
 version:            0.1
-synopsis:           Scalable and interruptible network I/O for Windows
+synopsis:           Interruptible network I/O for Windows
 -- description:
 homepage:           https://github.com/joeyadams/hs-windows-iocp
 bug-reports:        https://github.com/joeyadams/hs-windows-iocp/issues/new
