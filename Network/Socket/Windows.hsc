@@ -29,8 +29,12 @@ import IOCP.Manager (Completion(..))
 import qualified IOCP.Manager as M
 import IOCP.Mswsock
 import IOCP.Windows
-import IOCP.Winsock.Bindings (c_WSARecv, c_WSASend)
-import IOCP.Winsock.Types (SOCKET(..), WSABUF(..))
+import IOCP.Winsock.Types
+    ( SOCKET(..)
+    , WSABUF(..)
+    , LPWSABUF
+    , LPWSAOVERLAPPED_COMPLETION_ROUTINE
+    )
 
 import Control.Concurrent.MVar
 import Control.Exception
@@ -341,3 +345,31 @@ updateConnectContext sock =
     c_setsockopt sock
                  (#const SOL_SOCKET) sO_UPDATE_CONNECT_CONTEXT
                  nullPtr 0
+
+foreign import WINDOWS_CCONV unsafe "winsock2.h WSARecv"
+    c_WSARecv
+      :: SOCKET       -- ^ s
+      -> LPWSABUF     -- ^ lpBuffers
+      -> DWORD        -- ^ dwBufferCount
+      -> LPDWORD      -- ^ lpNumberOfBytesRecvd
+      -> LPDWORD      -- ^ lpFlags
+      -> LPOVERLAPPED -- ^ lpOverlapped
+      -> LPWSAOVERLAPPED_COMPLETION_ROUTINE
+                      -- ^ lpCompletionRoutine.  Must not call back
+                      --   into Haskell, since 'c_WSARecv' is an
+                      --   @unsafe@ foreign import.
+      -> IO CInt
+
+foreign import WINDOWS_CCONV unsafe "winsock2.h WSASend"
+    c_WSASend
+      :: SOCKET       -- ^ s
+      -> LPWSABUF     -- ^ lpBuffers
+      -> DWORD        -- ^ dwBufferCount
+      -> LPDWORD      -- ^ lpNumberOfBytesSent
+      -> DWORD        -- ^ dwFlags
+      -> LPOVERLAPPED -- ^ lpOverlapped
+      -> LPWSAOVERLAPPED_COMPLETION_ROUTINE
+                      -- ^ lpCompletionRoutine.  Must not call back
+                      --   into Haskell, since 'c_WSASend' is an
+                      --   @unsafe@ foreign import.
+      -> IO CInt

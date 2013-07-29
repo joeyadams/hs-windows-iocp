@@ -27,7 +27,6 @@ library
         IOCP.Mswsock
         IOCP.Utils
         IOCP.Windows
-        IOCP.Winsock.Bindings
         IOCP.Winsock.Types
 
     other-modules:
@@ -40,7 +39,6 @@ library
 
     c-sources:
         cbits/iocp.c
-        cbits/Winsock.c
 
     include-dirs: include
     includes: iocp.h errno-posix.h
