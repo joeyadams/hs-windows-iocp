@@ -86,7 +86,9 @@ bindAnyPort sock =
           throwUnsupported "connect" $
               "address family " ++ show family ++ " not supported"
 
-accept :: Socket -> IO (Socket, SockAddr, SockAddr)
+-- | Variant of 'NS.accept' that can be cancelled with an
+-- asynchronous exception.
+accept :: Socket -> IO (Socket, SockAddr)
 accept sock = do
     status <- readMVar (sockStatus sock)
     -- Network.Socket.accept also allows the Connected state, but I don't know
@@ -95,9 +97,9 @@ accept sock = do
       then do
           newSock <- socket (sockFamily sock) (sockType sock) (sockProtocol sock)
           let !sz = sizeOfSockAddrByFamily (sockFamily sock)
-          (localAddr, remoteAddr) <- rawAccept (sockSOCKET sock) (sockSOCKET newSock) sz sz
+          (_localAddr, remoteAddr) <- rawAccept (sockSOCKET sock) (sockSOCKET newSock) sz sz
           _ <- swapMVar (sockStatus newSock) Connected
-          return (newSock, localAddr, remoteAddr)
+          return (newSock, remoteAddr)
       else fail $ "accept: can't perform accept on socket in status " ++ show status
 
 -- | Call @ConnectEx@, which requires the socket to be initially bound.
