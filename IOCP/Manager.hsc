@@ -11,7 +11,7 @@ module IOCP.Manager (
     Completion(..),
 ) where
 
-import IOCP.CompletionPort hiding (associate, checkPendingIf_)
+import IOCP.CompletionPort hiding (associate)
 import qualified IOCP.CompletionPort as CP
 import IOCP.Windows
 

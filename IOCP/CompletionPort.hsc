@@ -22,8 +22,6 @@ module IOCP.CompletionPort (
     CancelIoEx,
     loadCancelIoEx,
     runCancelIoEx,
-    IOStatus(..),
-    checkPendingIf_,
 
     -- * Types
     CompletionPort(..),
@@ -200,25 +198,3 @@ runCancelIoEx (CancelIoEx f) (Handle h) mol = do
         if err == eERROR_NOT_FOUND
           then return False
           else throwErrCode "CancelIoEx" err
-
-data IOStatus
-  = Pending
-  | Done
-  deriving (Eq, Show)
-
--- | Wrap an action that either completes immediately ('Done') or will signal
--- completion at a later time ('Pending').
-checkPendingIf_
-    :: (a -> Bool) -- ^ Predicate returning 'True' on \"failure\"
-    -> String
-    -> IO a
-    -> IO IOStatus
-checkPendingIf_ p loc act = do
-    a <- act
-    if p a
-      then do
-        err <- getLastError
-        if err == eERROR_IO_PENDING
-            then return Pending
-            else throwErrCode loc err
-      else return Done
