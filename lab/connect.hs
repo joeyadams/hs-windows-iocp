@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 import qualified Network.Socket as NS
 import qualified Network.Socket.ByteString as NSB
-import Network.Socket hiding (socket, connect)
+import Network.Socket hiding (socket, connect, accept)
 import Network.Socket.Windows
 
 import Control.Concurrent
@@ -19,6 +19,11 @@ server =
     forever $ do
         (client, clientAddr) <- accept sock
         putStrLn $ "server: accepted connection from " ++ show clientAddr
+        sname <- getSocketName client
+        putStrLn $ "server: getSocketName client: " ++ show sname
+        pname <- getPeerName client
+        putStrLn $ "server: getPeerName client: " ++ show pname
+
         forkIO $ do
             NSB.sendAll client "Hello!"
             bs <- NSB.recv client 4096
@@ -46,6 +51,10 @@ main = withSocketsDo $ do
               putStrLn "connect succeeded first time."
 
     putStrLn "client: connected to server"
+    sname <- getSocketName sock
+    putStrLn $ "client: getSocketName: " ++ show sname
+    pname <- getPeerName sock
+    putStrLn $ "client: getPeerName: " ++ show pname
 
     NSB.sendAll sock "Hello, server."
 
