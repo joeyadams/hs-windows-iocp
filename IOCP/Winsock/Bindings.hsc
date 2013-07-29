@@ -5,6 +5,7 @@ module IOCP.Winsock.Bindings (
     c_close,
     c_bind,
     c_WSAIoctl,
+    c_WSARecv,
     c_WSASend,
 ) where
 
@@ -49,6 +50,20 @@ foreign import WINDOWS_CCONV unsafe "winsock2.h WSAIoctl"
       -> LPDWORD      -- ^ lpcbBytesReturned
       -> LPWSAOVERLAPPED
       -> LPWSAOVERLAPPED_COMPLETION_ROUTINE
+      -> IO CInt
+
+foreign import WINDOWS_CCONV unsafe "winsock2.h WSARecv"
+    c_WSARecv
+      :: SOCKET       -- ^ s
+      -> LPWSABUF     -- ^ lpBuffers
+      -> DWORD        -- ^ dwBufferCount
+      -> LPDWORD      -- ^ lpNumberOfBytesRecvd
+      -> LPDWORD      -- ^ lpFlags
+      -> LPOVERLAPPED -- ^ lpOverlapped
+      -> LPWSAOVERLAPPED_COMPLETION_ROUTINE
+                      -- ^ lpCompletionRoutine.  Must not call back
+                      --   into Haskell, since 'c_WSARecv' is an
+                      --   @unsafe@ foreign import.
       -> IO CInt
 
 foreign import WINDOWS_CCONV unsafe "winsock2.h WSASend"

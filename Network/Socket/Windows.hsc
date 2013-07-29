@@ -7,21 +7,28 @@ module Network.Socket.Windows (
     associate,
     connect,
     accept,
+    recv,
+    send,
+    sendAll,
 ) where
 
 import IOCP.Manager (Completion(..))
 import qualified IOCP.Manager as M
 import IOCP.Mswsock
 import IOCP.Windows
-import IOCP.Winsock.Types (SOCKET(..))
+import IOCP.Winsock.Bindings (c_WSARecv, c_WSASend)
+import IOCP.Winsock.Types (SOCKET(..), WSABUF(..))
 
 import Control.Concurrent.MVar
 import Control.Exception
 import Control.Monad
+import Data.ByteString (ByteString)
+import Data.ByteString.Internal (createAndTrim)
+import Data.ByteString.Unsafe (unsafeUseAsCStringLen)
 import Foreign
 import Foreign.C
 import GHC.IO.Exception
-import Network.Socket hiding (socket, connect, accept)
+import Network.Socket hiding (socket, connect, accept, recv, send)
 import qualified Network.Socket as NS
 import Network.Socket.Internal
     ( withSockAddr
@@ -146,6 +153,55 @@ rawAccept listenSock acceptSock localAddrLen remoteAddrLen = do
 
           return (localAddr, remoteAddr)
 
+-- | Variant of 'Network.Socket.ByteString.recv' that can be cancelled with
+-- an asynchronous exception.
+--
+-- On EOF, this will return an empty string.  Be warned that the EOF handling
+-- between "Network.Socket" and "Network.Socket.ByteString" is inconsistent:
+--
+--  ["Network.Socket"]
+--    'Network.Socket.recv' throws an exception when the system call returns
+--    zero bytes.
+--
+--  ["Network.Socket.ByteString"]
+--    'Network.Socket.ByteString.recv' returns 0 when the system call returns
+--    zero bytes.  This is how our recv behaves, too.
+recv :: Socket -> Int -> IO ByteString
+recv sock nbytes
+  | nbytes < 0 = throwInvalidArgument "recv" "non-positive length"
+  | otherwise  =
+      createAndTrim nBytes $ \ptr ->
+      rawRecv (sockSOCKET sock) [WSABUF{wbLen = fromIntegral nbytes, wbBuf = ptr}]
+
+-- | Variant of 'Network.Socket.ByteString.send' that can be cancelled with an
+-- asynchronous exception.
+send :: Socket -> ByteString -> IO Int
+send sock bs =
+    unsafeUseAsCStringLen bs $ \(ptr, len) ->
+    rawSend (sockSOCKET sock) [WSABUF{wbLen = fromIntegral len, wbBuf = ptr}]
+
+-- | Variant of 'Network.Socket.ByteString.sendAll' that can be cancelled with
+-- an asynchronous exception.
+sendAll :: Socket -> ByteString -> IO ()
+sendAll sock bs = do
+    -- TODO: Test to make sure this doesn't spin forever if the socket is
+    --       nonblocking or something.
+    sent <- send sock bs
+    when (sent < B.length bs) $ sendAll sock (B.drop sent bs)
+
+rawRecv :: SOCKET -> [WSABUF] -> IO Int
+rawRecv sock bufs =
+    withArrayLen bufs $ \bufCount bufPtr ->
+    with 0 $ \lpFlags ->
+    withOverlappedNB "recv" sock (/= 0) $ \ol ->
+    c_WSARecv sock buf (fromIntegral bufCount) nullPtr lpFlags ol nullFunPtr
+
+rawSend :: SOCKET -> [WSABUF] -> IO Int
+rawSend sock bufs =
+    withArrayLen bufs $ \bufCount bufPtr ->
+    withOverlappedNB "send" sock (/= 0) $ \ol ->
+    c_WSASend sock buf (fromIntegral bufCount) nullPtr 0 ol nullFunPtr
+
 ------------------------------------------------------------------------
 -- withOverlapped wrappers for SOCKET
 
@@ -158,6 +214,13 @@ withOverlapped_ loc sock p s = do
     if cError /= 0
       then throwErrCode loc cError
       else return ()
+
+withOverlappedNB :: String -> SOCKET -> (a -> Bool) -> (LPOVERLAPPED -> IO a) -> IO Int
+withOverlappedNB loc sock p s = do
+    Completion{..} <- withOverlapped loc sock p s
+    if cError /= 0
+      then throwErrCode loc cError
+      else return $! fromIntegral cNumBytes
 
 ------------------------------------------------------------------------
 -- Socket record accessors
@@ -191,6 +254,17 @@ throwUnsupported loc descr =
     throwIO IOError
             { ioe_handle      = Nothing
             , ioe_type        = UnsupportedOperation
+            , ioe_location    = loc
+            , ioe_description = descr
+            , ioe_errno       = Nothing
+            , ioe_filename    = Nothing
+            }
+
+throwInvalidArgument :: String -> String -> IO a
+throwInvalidArgument loc descr =
+    throwIO IOError
+            { ioe_handle      = Nothing
+            , ioe_type        = InvalidArgument
             , ioe_location    = loc
             , ioe_description = descr
             , ioe_errno       = Nothing

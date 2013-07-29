@@ -49,7 +49,7 @@ library
     includes: iocp.h errno-posix.h
 
     build-depends: base >= 4.6 && < 5
-                 , network
+                 , network >= 2.4.1.2
 
     extra-libraries: ws2_32
 
