@@ -24,6 +24,7 @@ library
         IOCP.Bindings
         IOCP.CompletionPort
         IOCP.Manager
+        IOCP.Mswsock
         IOCP.Utils
         IOCP.Windows
         IOCP.Winsock
