@@ -10,6 +10,7 @@ module IOCP.CompletionPort (
     closeHandle,
     newOverlapped,
     newOverlappedWithOffset,
+    allocaOverlapped,
     peekOverlapped,
     freeOverlapped,
     getQueuedCompletionStatus,
@@ -36,6 +37,7 @@ import IOCP.Bindings
 import IOCP.Types
 import IOCP.Windows
 
+import Control.Exception (bracket)
 import Foreign
 
 newCompletionPort :: IO (CompletionPort a)
@@ -82,6 +84,12 @@ newOverlappedWithOffset offset ctx = do
     sptr <- newStablePtr ctx
     poke ptr $! OverlappedRec ol sptr (toBOOL True)
     return (Overlapped ptr)
+
+-- | Allocate an 'Overlapped', then free it after the inner
+-- computation finishes.
+allocaOverlapped :: a -> (Overlapped a -> IO b) -> IO b
+allocaOverlapped a = bracket (newOverlapped a) freeOverlapped
+-- TODO: use alloca instead of malloc and free.
 
 -- | Retrieve the context value passed to 'newOverlapped'.
 peekOverlapped :: Overlapped a -> IO a
