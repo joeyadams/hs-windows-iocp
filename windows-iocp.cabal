@@ -22,8 +22,10 @@ source-repository head
 library
     exposed-modules:
         Network.Socket.Windows
-        IOCP.CompletionPort
         IOCP.Manager
+
+    other-modules:
+        IOCP.CompletionPort
         IOCP.Utils
         IOCP.Windows
         IOCP.Winsock.Mswsock
@@ -48,14 +50,17 @@ library
 
     default-language: Haskell2010
 
-test-suite test
-    type:           exitcode-stdio-1.0
-    hs-source-dirs: test
-    main-is:        Main.hs
-
-    build-depends: base
-                 , windows-iocp
-
-    ghc-options: -Wall -fwarn-tabs
-
-    default-language: Haskell2010
+-- Cabal doesn't let the test suite import hidden modules,
+-- so it is disabled for now.
+--
+-- test-suite test
+--     type:           exitcode-stdio-1.0
+--     hs-source-dirs: test
+--     main-is:        Main.hs
+--
+--     build-depends: base
+--                  , windows-iocp
+--
+--     ghc-options: -Wall -fwarn-tabs
+--
+--     default-language: Haskell2010
