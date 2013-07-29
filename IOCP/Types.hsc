@@ -3,6 +3,7 @@ module IOCP.Types (
     CompletionPort(..),
     Handle(..),
     Overlapped(..),
+    toLPOVERLAPPED,
     OverlappedRec(..),
     peekOverlappedStablePtr,
     getOverlappedAlive,
@@ -28,9 +29,8 @@ newtype Handle a = Handle HANDLE
 newtype Overlapped a = Overlapped (Ptr (OverlappedRec a))
     deriving (Eq, Show, Storable)
 
-instance IsLPOVERLAPPED (Overlapped a) where
-    fromLPOVERLAPPED ptr = Overlapped (castPtr ptr)
-    toLPOVERLAPPED (Overlapped ptr) = castPtr ptr
+toLPOVERLAPPED :: Overlapped a -> LPOVERLAPPED
+toLPOVERLAPPED (Overlapped ptr) = castPtr ptr
 
 data OverlappedRec a = OverlappedRec
     { orOverlapped :: !OVERLAPPED

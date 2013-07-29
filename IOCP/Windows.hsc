@@ -35,10 +35,6 @@ module IOCP.Windows (
     iNFINITE,
     iNVALID_HANDLE_VALUE,
 
-    -- * Conversion helpers
-    IsHANDLE(..),
-    IsLPOVERLAPPED(..),
-
     -- * Loading functions dynamically
     HMODULE(..),
     getModuleHandle,
@@ -259,14 +255,6 @@ iNFINITE = #const INFINITE
 
 iNVALID_HANDLE_VALUE :: HANDLE
 iNVALID_HANDLE_VALUE = wordPtrToPtr (-1)
-
-class IsHANDLE a where
-    fromHANDLE :: HANDLE -> a
-    toHANDLE   :: a -> HANDLE
-
-class IsLPOVERLAPPED a where
-    fromLPOVERLAPPED :: LPOVERLAPPED -> a
-    toLPOVERLAPPED   :: a -> LPOVERLAPPED
 
 -- | A Windows error code, as returned by @GetLastError@.  Windows error codes
 -- are not the same as @errno@!  @errno@ is a compatibility shim provided by

@@ -27,6 +27,7 @@ module IOCP.CompletionPort (
     CompletionPort(..),
     Handle(..),
     Overlapped(..),
+    toLPOVERLAPPED,
     OverlappedRec(..),
     Completion(..),
 ) where

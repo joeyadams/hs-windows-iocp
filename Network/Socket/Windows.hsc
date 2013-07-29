@@ -241,7 +241,8 @@ rawSend sock bufs =
 -- withOverlapped wrappers for SOCKET
 
 withOverlapped :: String -> SOCKET -> (a -> Bool) -> (LPOVERLAPPED -> IO a) -> IO Completion
-withOverlapped loc sock = M.withOverlapped loc (toHANDLE sock)
+withOverlapped loc (SOCKET s) =
+    M.withOverlapped loc (wordPtrToPtr (fromIntegral s))
 
 withOverlapped_ :: String -> SOCKET -> (a -> Bool) -> (LPOVERLAPPED -> IO a) -> IO ()
 withOverlapped_ loc sock p s = do

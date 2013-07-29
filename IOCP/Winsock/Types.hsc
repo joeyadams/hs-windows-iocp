@@ -7,7 +7,6 @@
 module IOCP.Winsock.Types (
     SOCKET(..),
     iNVALID_SOCKET,
-    IsSOCKET(..),
 
     -- * Socket addresses
     SockAddr(..),
@@ -57,7 +56,6 @@ module IOCP.Winsock.Types (
     WSAOVERLAPPED_COMPLETION_ROUTINE,
 ) where
 
-import qualified IOCP.CompletionPort as CP
 import IOCP.Utils
 import IOCP.Windows
 
@@ -77,24 +75,8 @@ import Numeric (showInt, showHex)
 newtype SOCKET = SOCKET (#type SOCKET)
     deriving (Eq, Ord, Show, Storable, Typeable)
 
-instance IsHANDLE SOCKET where
-    fromHANDLE h = SOCKET $ fromIntegral $ ptrToWordPtr h
-    toHANDLE (SOCKET s) = wordPtrToPtr $ fromIntegral s
-
 iNVALID_SOCKET :: SOCKET
 iNVALID_SOCKET = SOCKET #const INVALID_SOCKET
-
-class IsSOCKET a where
-    fromSOCKET :: SOCKET -> a
-    toSOCKET   :: a -> SOCKET
-
-instance IsSOCKET HANDLE where
-    fromSOCKET = toHANDLE
-    toSOCKET   = fromHANDLE
-
-instance IsSOCKET (CP.Handle a) where
-    fromSOCKET s = CP.Handle (fromSOCKET s)
-    toSOCKET (CP.Handle h) = toSOCKET h
 
 data SockAddr
   = SockAddrInet
