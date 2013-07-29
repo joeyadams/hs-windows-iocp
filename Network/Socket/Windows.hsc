@@ -109,7 +109,11 @@ rawConnect sock addr = do
     withSockAddr addr $ \ptr len ->
       withOverlapped_ "connect" sock isFALSE $
         mswConnectEx sock ptr (fromIntegral len) nullPtr 0 nullPtr
-    -- TODO: updateConnectContext
+
+    -- Only a limited set of operations are available on a socket newly
+    -- connected with ConnectEx.  Set SO_UPDATE_CONNECT_CONTEXT so we can do
+    -- things like shutdown() and getpeername().
+    updateConnectContext sock
 
 -- | Call @AcceptEx@, which returns both the local and remote addresses.
 rawAccept :: SOCKET -- ^ Socket that 'listen' was called on
