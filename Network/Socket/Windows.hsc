@@ -27,8 +27,8 @@ module Network.Socket.Windows (
 
 import IOCP.Manager (Completion(..))
 import qualified IOCP.Manager as M
-import IOCP.Mswsock
 import IOCP.Windows
+import IOCP.Winsock.Mswsock
 import IOCP.Winsock.Types
 
 import Control.Concurrent.MVar

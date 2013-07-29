@@ -24,9 +24,9 @@ library
         Network.Socket.Windows
         IOCP.CompletionPort
         IOCP.Manager
-        IOCP.Mswsock
         IOCP.Utils
         IOCP.Windows
+        IOCP.Winsock.Mswsock
         IOCP.Winsock.Types
 
     other-modules:

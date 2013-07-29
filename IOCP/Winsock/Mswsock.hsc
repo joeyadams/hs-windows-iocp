@@ -4,7 +4,7 @@
 {-# LANGUAGE RecordWildCards #-}
 -- | Bindings for functions declared in \"Mswsock.h\".  Unfortunately, we can't
 -- call them directly; we have to fetch them with @WSAIoctl@.
-module IOCP.Mswsock (
+module IOCP.Winsock.Mswsock (
     getMswsock,
     Mswsock(..),
 
