@@ -22,10 +22,6 @@ module IOCP.Mswsock (
 import IOCP.Utils (withPtrLen)
 import IOCP.Windows
 import IOCP.Winsock.Types
-    ( SOCKET(..)
-    , LPWSAOVERLAPPED
-    , LPWSAOVERLAPPED_COMPLETION_ROUTINE
-    )
 
 import Control.Applicative ((<$>))
 import Control.Exception

@@ -30,11 +30,6 @@ import qualified IOCP.Manager as M
 import IOCP.Mswsock
 import IOCP.Windows
 import IOCP.Winsock.Types
-    ( SOCKET(..)
-    , WSABUF(..)
-    , LPWSABUF
-    , LPWSAOVERLAPPED_COMPLETION_ROUTINE
-    )
 
 import Control.Concurrent.MVar
 import Control.Exception
@@ -86,6 +81,8 @@ import Network.Socket.Internal
 ##  error Unknown mingw32 arch
 ## endif
 ##endif
+
+#let alignment t = "%lu", (unsigned long)offsetof(struct {char x__; t (y__); }, y__)
 
 
 -- | Create a 'Socket' that can be used with the I\/O functions in this
@@ -210,14 +207,14 @@ recv sock nbytes
   | nbytes < 0 = throwInvalidArgument "recv" "non-positive length"
   | otherwise  =
       createAndTrim nbytes $ \ptr ->
-      rawRecv (sockSOCKET sock) [WSABUF{wbLen = fromIntegral nbytes, wbBuf = castPtr ptr}]
+      rawRecv (sockSOCKET sock) [mkWSABUF ptr nbytes]
 
 -- | Variant of 'Network.Socket.ByteString.send' that can be cancelled with an
 -- asynchronous exception.
 send :: Socket -> ByteString -> IO Int
 send sock bs =
-    unsafeUseAsCStringLen bs $ \(ptr, len) ->
-    rawSend (sockSOCKET sock) [WSABUF{wbLen = fromIntegral len, wbBuf = ptr}]
+    unsafeUseAsCStringLen bs $ \(ptr, nbytes) ->
+    rawSend (sockSOCKET sock) [mkWSABUF ptr nbytes]
 
 -- | Variant of 'Network.Socket.ByteString.sendAll' that can be cancelled with
 -- an asynchronous exception.
@@ -245,8 +242,7 @@ rawSend sock bufs =
 -- withOverlapped wrappers for SOCKET
 
 withOverlapped :: String -> SOCKET -> (a -> Bool) -> (LPOVERLAPPED -> IO a) -> IO Completion
-withOverlapped loc (SOCKET s) =
-    M.withOverlapped loc (wordPtrToPtr (fromIntegral s))
+withOverlapped loc s = M.withOverlapped loc (toHANDLE s)
 
 withOverlapped_ :: String -> SOCKET -> (a -> Bool) -> (LPOVERLAPPED -> IO a) -> IO ()
 withOverlapped_ loc sock p s = do
@@ -272,7 +268,7 @@ sockSOCKET :: Socket -> SOCKET
 sockSOCKET = SOCKET . fromIntegral . sockFd
 
 sockHANDLE :: Socket -> HANDLE
-sockHANDLE = wordPtrToPtr . fromIntegral . sockFd
+sockHANDLE = toHANDLE . sockSOCKET
 
 sockFamily :: Socket -> Family
 sockFamily (MkSocket _ family _ _ _) = family
