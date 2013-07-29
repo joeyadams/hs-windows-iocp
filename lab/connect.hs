@@ -1,7 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-import qualified Network.Socket as NS
-import qualified Network.Socket.ByteString as NSB
-import Network.Socket hiding (socket, connect, accept)
+import Network.Socket hiding (socket, connect, accept, recv, send)
 import Network.Socket.Windows
 
 import Control.Concurrent
@@ -25,8 +23,10 @@ server =
         putStrLn $ "server: getPeerName client: " ++ show pname
 
         forkIO $ do
-            NSB.sendAll client "Hello!"
-            bs <- NSB.recv client 4096
+            sendAll client "He"
+            threadDelay 3000000
+            sendAll client "llo!"
+            bs <- recv client 4096
             putStrLn $ "server: received " ++ show bs
             threadDelay 1000000
             close client
@@ -45,10 +45,10 @@ main = withSocketsDo $ do
     timeout 2000000 (connect sock $ SockAddrInet 1234 google)
       >>= \m -> case m of
           Nothing -> do
-              putStrLn "connect timed out.  Will try connecting to myself instead."
+              putStrLn "client: connect timed out.  Will try connecting to myself instead."
               connect sock $ SockAddrInet 1234 localhost
           Just () ->
-              putStrLn "connect succeeded first time."
+              putStrLn "client: connect succeeded first time."
 
     putStrLn "client: connected to server"
     sname <- getSocketName sock
@@ -56,10 +56,19 @@ main = withSocketsDo $ do
     pname <- getPeerName sock
     putStrLn $ "client: getPeerName: " ++ show pname
 
-    NSB.sendAll sock "Hello, server."
+    sendAll sock "Hello, server."
 
-    bs <- NSB.recv sock 4096
+    bs <- recv sock 4096
     putStrLn $ "client: received " ++ show bs
+
+    timeout 1000000 (recv sock 4096)
+      >>= \m -> case m of
+          Nothing -> do
+              putStrLn $ "client: recv timed out.  Trying again without timeout."
+              bs' <- recv sock 4096
+              putStrLn $ "client: received " ++ show bs'
+          Just s ->
+              putStrLn $ "client: recv succeeded first time: " ++ show s
 
     threadDelay 1000000
     close sock
