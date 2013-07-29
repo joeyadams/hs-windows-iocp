@@ -1,7 +1,20 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE RecordWildCards #-}
--- | Interruptible I\/O support for "Network.Socket".
+-- | Interruptible network I\/O for Windows.  This provides replacements for
+-- similar functions in "Network.Socket" and "Network.Socket.ByteString".
+--
+-- Requirements:
+--
+--  * Threaded RTS (i.e. pass the @-threaded@ option to GHC).
+--
+--  * Windows Vista or later.  Windows XP support will be added in the future,
+--    but with somewhat degraded performance.
+--
+-- WARNING: If the 'Socket' was not created by the 'socket' function in this
+-- module, you have to 'associate' it with the I\/O manager before using it
+-- with other functions in this module.  Otherwise, they will hang
+-- uninterruptibly.
 module Network.Socket.Windows (
     socket,
     associate,
@@ -29,7 +42,27 @@ import Data.ByteString.Unsafe (unsafeUseAsCStringLen)
 import Foreign
 import Foreign.C
 import GHC.IO.Exception
-import Network.Socket hiding (socket, connect, accept, recv, send)
+import Network.Socket hiding (
+    -- We have special implementations for these.
+      socket
+    , connect
+    , accept
+    , recv
+    , recvLen
+    , recvBuf
+    , send
+    , sendBuf
+
+    -- We plan to add support for these in the future.
+    , sendTo
+    , sendBufTo
+    , recvFrom
+    , recvBufFrom
+
+    -- Can't support socketToHandle because, at the moment, Handle only
+    -- pretends to support custom backends.
+    , socketToHandle
+    )
 import qualified Network.Socket as NS
 import Network.Socket.Internal
     ( withSockAddr
@@ -59,9 +92,10 @@ socket f t p = do
     associate sock
     return sock
 
--- | Associate a 'Socket' with the I\/O manager.  This step must be performed
--- before any of the I\/O functions in this module may be used.  It may not be
--- performed twice ('socket' does it for you).
+-- | Associate an existing 'Socket' with the I\/O manager.  This step must be
+-- performed before any of the I\/O functions in this module may be used,
+-- unless you used the 'socket' function in this module to create the 'Socket'.
+-- Calling 'associate' on an already-associated handle will throw an 'IOError'.
 associate :: Socket -> IO ()
 associate = M.associate . sockHANDLE
 
