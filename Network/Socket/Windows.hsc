@@ -23,6 +23,7 @@ import Control.Concurrent.MVar
 import Control.Exception
 import Control.Monad
 import Data.ByteString (ByteString)
+import qualified Data.ByteString as B
 import Data.ByteString.Internal (createAndTrim)
 import Data.ByteString.Unsafe (unsafeUseAsCStringLen)
 import Foreign
@@ -170,8 +171,8 @@ recv :: Socket -> Int -> IO ByteString
 recv sock nbytes
   | nbytes < 0 = throwInvalidArgument "recv" "non-positive length"
   | otherwise  =
-      createAndTrim nBytes $ \ptr ->
-      rawRecv (sockSOCKET sock) [WSABUF{wbLen = fromIntegral nbytes, wbBuf = ptr}]
+      createAndTrim nbytes $ \ptr ->
+      rawRecv (sockSOCKET sock) [WSABUF{wbLen = fromIntegral nbytes, wbBuf = castPtr ptr}]
 
 -- | Variant of 'Network.Socket.ByteString.send' that can be cancelled with an
 -- asynchronous exception.
@@ -194,13 +195,13 @@ rawRecv sock bufs =
     withArrayLen bufs $ \bufCount bufPtr ->
     with 0 $ \lpFlags ->
     withOverlappedNB "recv" sock (/= 0) $ \ol ->
-    c_WSARecv sock buf (fromIntegral bufCount) nullPtr lpFlags ol nullFunPtr
+    c_WSARecv sock bufPtr (fromIntegral bufCount) nullPtr lpFlags ol nullFunPtr
 
 rawSend :: SOCKET -> [WSABUF] -> IO Int
 rawSend sock bufs =
     withArrayLen bufs $ \bufCount bufPtr ->
     withOverlappedNB "send" sock (/= 0) $ \ol ->
-    c_WSASend sock buf (fromIntegral bufCount) nullPtr 0 ol nullFunPtr
+    c_WSASend sock bufPtr (fromIntegral bufCount) nullPtr 0 ol nullFunPtr
 
 ------------------------------------------------------------------------
 -- withOverlapped wrappers for SOCKET
