@@ -75,7 +75,7 @@ import Numeric (showInt, showHex)
 #let alignment t = "%lu", (unsigned long)offsetof(struct {char x__; t (y__); }, y__)
 
 newtype SOCKET = SOCKET (#type SOCKET)
-    deriving (Eq, Ord, Show, Typeable)
+    deriving (Eq, Ord, Show, Storable, Typeable)
 
 instance IsHANDLE SOCKET where
     fromHANDLE h = SOCKET $ fromIntegral $ ptrToWordPtr h
