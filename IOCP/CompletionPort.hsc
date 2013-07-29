@@ -8,7 +8,6 @@ module IOCP.CompletionPort (
     newCompletionPort,
     closeCompletionPort,
     associate,
-    closeHandle,
     newOverlapped,
     freeOverlapped,
     allocaOverlapped,
@@ -25,7 +24,6 @@ module IOCP.CompletionPort (
 
     -- * Types
     CompletionPort(..),
-    Handle(..),
     Overlapped(..),
     toLPOVERLAPPED,
     OverlappedRec(..),
@@ -60,14 +58,10 @@ newCompletionPort =
 closeCompletionPort :: CompletionPort a -> IO ()
 closeCompletionPort (CompletionPort h) = closeHANDLE "closeCompletionPort" h
 
-associate :: CompletionPort a -> HANDLE -> IO (Handle a)
-associate cport handle = do
+associate :: CompletionPort a -> HANDLE -> IO ()
+associate cport handle =
     failIf_ (/= cport) "associate" $
         c_CreateIoCompletionPort handle cport 0 0
-    return (Handle handle)
-
-closeHandle :: Handle a -> IO ()
-closeHandle (Handle h) = closeHANDLE "closeHandle" h
 
 closeHANDLE :: String -> HANDLE -> IO ()
 closeHANDLE loc h =
@@ -163,7 +157,7 @@ postValue cport a = newOverlapped a >>= postQueuedCompletionStatus cport
 --
 -- Warning: prior to Windows Vista, when an OS thread exits, all of its pending
 -- I\/O is canceled automatically.  On Vista and later, this cancellation does
--- not happen if the 'Handle' has been associated with a completion port.
+-- not happen if the 'HANDLE' has been associated with a completion port.
 --
 -- For earlier systems, we can use this workaround to support targeted
 -- cancellation:
@@ -174,11 +168,11 @@ postValue cport a = newOverlapped a >>= postQueuedCompletionStatus cport
 --  * To cancel the I\/O, call 'cancelIo' from the same proxy thread that
 --    initiated it.
 --
---  * For concurrent operations on the same 'Handle', use a separate OS thread
---    for each operation.  Multiple 'Handle's may share a proxy thread,
+--  * For concurrent operations on the same 'HANDLE', use a separate OS thread
+--    for each operation.  Multiple 'HANDLE's may share a proxy thread,
 --    but operations on the same handle may not.
-cancelIo :: Handle a -> IO ()
-cancelIo (Handle h) =
+cancelIo :: HANDLE -> IO ()
+cancelIo h =
     failIf_ isFALSE "cancelIo" $
     c_CancelIo h
 
@@ -186,12 +180,12 @@ cancelIo (Handle h) =
 -- found to be canceled (e.g. because the I\/O already completed).
 runCancelIoEx
     :: CancelIoEx
-    -> Handle a
+    -> HANDLE
     -> Maybe (Overlapped a)
        -- ^ Identifies the operation to cancel.  If 'Nothing', cancel all
        --   pending I\/O on this handle, regardless of what threads started it.
     -> IO Bool
-runCancelIoEx (CancelIoEx f) (Handle h) mol = do
+runCancelIoEx (CancelIoEx f) h mol = do
     b <- f h (maybe nullPtr toLPOVERLAPPED mol)
     if isTRUE b
       then return True
@@ -250,9 +244,6 @@ foreign import WINDOWS_CCONV unsafe "dynamic"
 -- Types
 
 newtype CompletionPort a = CompletionPort HANDLE
-    deriving (Eq, Show, Storable)
-
-newtype Handle a = Handle HANDLE
     deriving (Eq, Show, Storable)
 
 newtype Overlapped a = Overlapped (Ptr (OverlappedRec a))

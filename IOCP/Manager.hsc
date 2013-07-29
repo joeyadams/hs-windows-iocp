@@ -27,8 +27,7 @@ import System.IO.Unsafe (unsafePerformIO)
 associate :: HANDLE -> IO ()
 associate h = do
     Manager{..} <- getManager "associate"
-    _ <- CP.associate mgrPort h
-    return ()
+    CP.associate mgrPort h
 
 -- | Wrap a system call that supports overlapped I\/O.
 --
@@ -77,7 +76,7 @@ withOverlapped loc handle isErr startCB = do
             -- If start callback fails, the Overlapped will be freed and the
             -- exception will be propagated.  That's what we want.
         takeMVar mv `onException` do
-            _ <- runCancelIoEx mgrCancelIoEx (Handle handle) (Just ol)
+            _ <- runCancelIoEx mgrCancelIoEx handle (Just ol)
             -- DO NOT let 'withOverlapped' finish without waiting for
             -- completion delivery.  Otherwise, our 'allocaOverlapped' will
             -- free the overlapped before it is done being used, and allocas
