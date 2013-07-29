@@ -14,6 +14,7 @@ import IOCP.Winsock.Types (SOCKET(..))
 
 import Control.Concurrent.MVar
 import Control.Exception
+import Control.Monad
 import Foreign
 import Foreign.C
 import GHC.IO.Exception
@@ -39,34 +40,36 @@ associate = M.associate . sockHANDLE
 -- asynchronous exception.
 connect :: Socket -> SockAddr -> IO ()
 connect sock addr =
-    modifyMVar_ (sockStatus sock) $ \status ->
+    join $ modifyMVar (sockStatus sock) $ \status ->
     case status of
-        NotConnected -> bindAnyPort >> go
-        Bound -> go
+        NotConnected ->
+            -- Relinquish the MVar before calling 'bind', or it will deadlock.
+            return (status, bindAnyPort sock >> connect sock addr)
+        Bound -> do
+            rawConnect (sockSOCKET sock) addr
+            return (Connected, return ())
         _ -> fail $ "connect: can't peform connect on socket in status " ++ show status
-  where
-    -- ConnectEx() requires the socket to be bound to a local address already,
-    -- Try to emulate regular connect(), which does an implicit bind().
-    --
-    -- TODO: Test the AF_INET6 case.
-    bindAnyPort =
-      case sockFamily sock of
-          AF_INET  -> bind sock $ SockAddrInet aNY_PORT iNADDR_ANY
-          AF_INET6 -> bind sock $ SockAddrInet6 aNY_PORT 0 iN6ADDR_ANY 0
-          -- Don't know how to perform implicit bind for other
-          -- address families.
-          family -> throwIO IOError
-               { ioe_handle      = Nothing
-               , ioe_type        = UnsupportedOperation
-               , ioe_location    = "connect"
-               , ioe_description = "address family " ++ show family ++ " not supported"
-               , ioe_errno       = Nothing
-               , ioe_filename    = Nothing
-               }
 
-    go = do
-        rawConnect (sockSOCKET sock) addr
-        return Connected
+-- | @ConnectEx()@ requires the socket to be bound to a local address already,
+-- while @connect()@ does this step automatically.  Try to emulate the implicit
+-- bind done by @connect()@.
+bindAnyPort :: Socket -> IO ()
+bindAnyPort sock =
+  case sockFamily sock of
+      AF_INET  -> bind sock $ SockAddrInet aNY_PORT iNADDR_ANY
+      AF_INET6 -> bind sock $ SockAddrInet6 aNY_PORT 0 iN6ADDR_ANY 0
+                  -- TODO: test AF_INET6
+
+      -- Don't know how to perform implicit bind for other
+      -- address families.
+      family -> throwIO IOError
+           { ioe_handle      = Nothing
+           , ioe_type        = UnsupportedOperation
+           , ioe_location    = "connect"
+           , ioe_description = "address family " ++ show family ++ " not supported"
+           , ioe_errno       = Nothing
+           , ioe_filename    = Nothing
+           }
 
 -- | Call @ConnectEx@, which requires the socket to be initially bound.
 rawConnect :: SOCKET -> SockAddr -> IO ()
