@@ -6,11 +6,15 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 -- | Provides a similar set of definitions as "System.Win32.Types" or
--- "GHC.Windows", with some improvements we need.  For example:
+-- "GHC.Windows", with some improvements we want and need:
 --
 --  * 'throwErrCode' may be called from a different thread than that producing
 --    the error, allowing I\/O operations to throw exceptions that were
 --    delivered as completions to the I\/O manager thread.
+--
+--  * Provides 'GUID', to prettify the GUID literals in "IOCP.Winsock.Mswsock".
+--
+--  * Provides 'OVERLAPPED', the structure IOCP revolves around.
 module IOCP.Windows (
     -- * Windows data types
     BOOL(..),
