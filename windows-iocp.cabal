@@ -29,9 +29,6 @@ library
         IOCP.Winsock.Mswsock
         IOCP.Winsock.Types
 
-    other-modules:
-        IOCP.Types
-
     build-tools: hsc2hs
 
     ghc-options: -Wall -fwarn-tabs
