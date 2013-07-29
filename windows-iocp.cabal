@@ -28,9 +28,7 @@ library
         IOCP.Mswsock
         IOCP.Utils
         IOCP.Windows
-        IOCP.Winsock
         IOCP.Winsock.Bindings
-        IOCP.Winsock.Load
         IOCP.Winsock.Types
 
     other-modules:
