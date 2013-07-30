@@ -427,6 +427,7 @@ getErrCodeInfoMaybe (ErrCode n) = case n of
     (#const WSAEAFNOSUPPORT)          {- 10047 -} -> f "WSAEAFNOSUPPORT"          UnsupportedOperation (#const EAFNOSUPPORT)
     (#const WSAEADDRINUSE)            {- 10048 -} -> f "WSAEADDRINUSE"            ResourceBusy         (#const EADDRINUSE)
     (#const WSAEADDRNOTAVAIL)         {- 10049 -} -> f "WSAEADDRNOTAVAIL"         UnsupportedOperation (#const EADDRNOTAVAIL)
+    (#const WSAECONNABORTED)          {- 10053 -} -> f "WSAECONNABORTED"          OtherError           (#const ECONNABORTED)
     (#const WSAECONNRESET)            {- 10054 -} -> f "WSAECONNRESET"            ResourceVanished     (#const ECONNRESET)
     (#const WSAEISCONN)               {- 10056 -} -> f "WSAEISCONN"               AlreadyExists        (#const EISCONN)
     (#const WSAENOTCONN)              {- 10057 -} -> f "WSAENOTCONN"              InvalidArgument      (#const ENOTCONN)
