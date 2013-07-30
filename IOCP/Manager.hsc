@@ -3,6 +3,7 @@
 -- | I\/O manager access.  Use 'withOverlapped' to wrap system calls that
 -- support overlapped I\/O (e.g. @ReadFile@).
 module IOCP.Manager (
+    isManagerAvailable,
     associate,
     withOverlapped,
 
@@ -146,3 +147,10 @@ getManager loc =
                     , ioe_filename    = Nothing
                     }
         Right mgr -> return mgr
+
+-- | Return 'True' if the I\/O manager is available on this configuration.
+isManagerAvailable :: IO Bool
+isManagerAvailable =
+    case managerCAF of
+        Left  _err -> return False
+        Right _mgr -> return True
