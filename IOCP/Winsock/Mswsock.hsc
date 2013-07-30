@@ -19,7 +19,6 @@ module IOCP.Winsock.Mswsock (
     WSASendMsg,
 ) where
 
-import IOCP.Utils (withPtrLen)
 import IOCP.Windows
 import IOCP.Winsock.Types
 
@@ -117,6 +116,13 @@ foreign import WINDOWS_CCONV unsafe "winsock2.h WSAIoctl"
       -> LPWSAOVERLAPPED
       -> LPWSAOVERLAPPED_COMPLETION_ROUTINE
       -> IO CInt
+
+-- | Like 'with', but also provide the size of the value (in bytes).
+withPtrLen :: Storable a => a -> (Ptr a -> Int -> IO b) -> IO b
+withPtrLen val f =
+  alloca $ \ptr -> do
+    poke ptr val
+    f ptr (sizeOf val)
 
 ------------------------------------------------------------------------
 -- mswsock.dll function signatures and wrappers
